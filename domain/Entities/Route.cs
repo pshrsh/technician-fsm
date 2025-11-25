@@ -10,9 +10,9 @@ namespace Domain.Entities
 
         public Route(string startLocation, string endLocation, TimeSpan estimatedTime)
         {
-            this.StartLocation = startLocation;
-            this.EndLocation = endLocation;
-            this.EstimatedTime = estimatedTime;
+            StartLocation = startLocation;
+            EndLocation = endLocation;
+            EstimatedTime = estimatedTime;
         }
     }
 }

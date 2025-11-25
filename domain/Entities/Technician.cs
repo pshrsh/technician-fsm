@@ -11,7 +11,7 @@ public static class Technician
         Skills = skills;
         StartHours = startHours;
         EndHours = endHours;
-        AssignedTasks = new task[] { };
+        AssignedTasks = [];
     }
     public void AssignTask(task newTask)
     {
