@@ -60,9 +60,9 @@ namespace FSM.Application.Algorithms
                 }
             }
 
-            // Calculate Missed Urgent Tasks
+            // calculate missed urgent tasks
             // assume the penalty is applied by the engine if tasks are left in the as unnasigned
-            // We are calculating how did the technician perform (lower is better)
+            // we are calculating how did the technician perform (lower is better)
             double cost = 
                 (totalTravelMinutes * _w1_TravelTime) +
                 (totalDelayMinutes * _w2_Delay) +
