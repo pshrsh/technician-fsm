@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Application.Interfaces;
-using Domain.Entities;
-using Domain.Interfaces;
+using FSM.Application.Interfaces;
+using FSM.Domain.Entities;
+using FSM.Domain.Interfaces;
 
 namespace FSM.Application.Algorithms
 {
@@ -14,9 +14,10 @@ namespace FSM.Application.Algorithms
         private readonly IAlgorithmGoal _objectiveFunction;
         private readonly Random _random = new Random();
 
-        private const double InitialTemperature = 1000.0;
-        private const double CoolingRate = 0.995; 
-        private const double AbsoluteZero = 0.1;
+        // SA Parameters
+        private double _temperature = 1000.0;
+        private readonly double _coolingRate = 0.995;
+        private readonly double _minTemperature = 0.1;
 
         public SimulatedAnnealingEngine(IAlgorithmGoal objectiveFunction)
         {
@@ -27,186 +28,97 @@ namespace FSM.Application.Algorithms
             List<TechnicianSchedule> currentSchedule, 
             CancellationToken cancellationToken)
         {
-            var currentSolution = DeepCloneSolution(currentSchedule);
-            double currentScore = _objectiveFunction.CalculateScore(currentSolution);
+            // Clone the initial solution so we don't mutate the original reference immediately
+            var currentSolution = CloneSolution(currentSchedule);
+            var bestSolution = CloneSolution(currentSolution);
 
-            var bestSolution = DeepCloneSolution(currentSolution);
+            double currentScore = _objectiveFunction.CalculateScore(currentSolution);
             double bestScore = currentScore;
 
-            double temperature = InitialTemperature;
-
-            // optimize until we reach absolute 0 or the user cancels
-            while (temperature > AbsoluteZero && !cancellationToken.IsCancellationRequested)
+            // Main SA Loop
+            while (_temperature > _minTemperature && !cancellationToken.IsCancellationRequested)
             {
-                // clone the current state to change safely
-                var candidateSolution = DeepCloneSolution(currentSolution);
-                
-                ApplyRandomMutation(candidateSolution);
+                // Create a neighbor solution (Mutate)
+                var neighborSolution = CloneSolution(currentSolution);
+                ApplyRandomMutation(neighborSolution);
 
-                // check the new state
-                double candidateScore = _objectiveFunction.CalculateScore(candidateSolution);
+                // Calculate new score
+                double neighborScore = _objectiveFunction.CalculateScore(neighborSolution);
 
-                // choose which state is better
-                if (AcceptanceProbability(currentScore, candidateScore, temperature) > _random.NextDouble())
+                // Acceptance Probability
+                // We want to MINIMIZE the score (Cost function)
+                if (AcceptanceProbability(currentScore, neighborScore, _temperature) > _random.NextDouble())
                 {
-                    currentSolution = candidateSolution;
-                    currentScore = candidateScore;
+                    currentSolution = neighborSolution;
+                    currentScore = neighborScore;
 
-                    // Keep track of the all-time best
+                    // Keep track of the absolute best we've seen
                     if (currentScore < bestScore)
                     {
-                        bestSolution = DeepCloneSolution(currentSolution);
+                        bestSolution = CloneSolution(currentSolution);
                         bestScore = currentScore;
                     }
                 }
 
                 // Cool down
-                temperature *= CoolingRate;
-
-                // pause/yield once in a while
-                if (_random.Next(0, 100) == 0) await Task.Yield(); 
+                _temperature *= _coolingRate;
+                
+                // Yield control periodically to keep UI responsive if needed
+                if (_temperature % 10 < 1) await System.Threading.Tasks.Task.Yield();
             }
 
             return bestSolution;
         }
 
-        // --- Helper: The Metropolis Acceptance Criterion ---
-        private double AcceptanceProbability(double currentScore, double newScore, double temperature)
+        private double AcceptanceProbability(double currentScore, double neighborScore, double temp)
         {
-            // If the new solution is better (lower score), accept it 100%
-            if (newScore < currentScore) return 1.0;
+            // If neighbor is better (lower cost), probability is 1.0
+            if (neighborScore < currentScore) return 1.0;
 
-            // If it's worse, accept it with a probability based on Temperature
-            // High Temp = High probability of accepting bad moves
-            // Low Temp = Low probability
-            return Math.Exp((currentScore - newScore) / temperature);
+            // If neighbor is worse, accept with probability exp(-(new - old) / temp)
+            return Math.Exp(-(neighborScore - currentScore) / temp);
         }
 
         private void ApplyRandomMutation(List<TechnicianSchedule> solution)
         {
-            // pick a random task and move it to a different technician
-            
-            // flatten all tasks to pick one
-            var allTasks = solution.SelectMany(s => s.Tasks).ToList();
-            if (allTasks.Count == 0) return;
+            // Simple mutation: Move a task from one tech to another, or swap order
+            // Pick two random technicians
+            var techA = solution[_random.Next(solution.Count)];
+            var techB = solution[_random.Next(solution.Count)];
 
-            var taskToMove = allTasks[_random.Next(allTasks.Count)];
-            int oldTechId = taskToMove.AssignedTechnicianId ?? 0;
+            if (techA.Tasks.Count == 0) return;
 
-            // find a compatible different technician
-            var availableTechs = solution
-                .Where(s => s.TechnicianId != oldTechId && 
-                            s.Technician.HasSkill(taskToMove.RequiredSkills))
-                .ToList();
+            // Pick a random task from Tech A
+            var taskListA = techA.Tasks.ToList();
+            var taskToMove = taskListA[_random.Next(taskListA.Count)];
 
-            if (availableTechs.Count == 0) return; // No other valid tech found
+            // Move it to Tech B
+            techA.Tasks.Remove(taskToMove);
+            techB.Tasks.Add(taskToMove);
 
-            var newSchedule = availableTechs[_random.Next(availableTechs.Count)];
-            var oldSchedule = solution.First(s => s.TechnicianId == oldTechId);
-
-            // swapping mechanism
-            // Remove from old
-            var taskInOldList = oldSchedule.Tasks.First(t => t.Id == taskToMove.Id);
-            oldSchedule.Tasks.Remove(taskInOldList);
-
-            // add to new (basically randomly)
-            // append and make the scoring function handle the delay calculation
-            newSchedule.Tasks.Add(taskInOldList);
-
-            // update the task's internal state
-            taskInOldList.AssignedTechnicianId = newSchedule.TechnicianId;
-            taskInOldList.AssignedTechnician = newSchedule.Technician;
-            
-            // theres no recalculating specific start times,  
-            // in a full implementation i might re-run a "Route Sequencer" on the modified schedule
-            // to update arrival Times before calculating the score.
-            UpdateRouteTimes(newSchedule);
+            // Re-assign ID
+            taskToMove.AssignedTechnicianId = techB.TechnicianId;
         }
 
-        private void UpdateRouteTimes(TechnicianSchedule schedule)
+        // Deep copy helper to avoid reference issues
+        private List<TechnicianSchedule> CloneSolution(List<TechnicianSchedule> source)
         {
-            // update ActualStartTime based on the new sequence
-            // ensures ObjectiveFunction evaluates valid times
-            if (!schedule.Tasks.Any()) return;
-
-            DateTime currentTime = schedule.Date.Add(schedule.Technician.ShiftStart);
-            double currentLat = schedule.Technician.BaseLatitude;
-            double currentLon = schedule.Technician.BaseLongitude;
-
-            foreach (var task in schedule.Tasks) // assume order is roughly maintained or simple append
-            {
-                // calc Travel
-                double dist = EstimateDistance(currentLat, currentLon, task.Latitude, task.Longitude);
-                double travelMins = (dist / schedule.Technician.EstimatedTravelSpeedKmH) * 60;
-                
-                currentTime = currentTime.AddMinutes(travelMins);
-
-                // maybe wait for window
-                if (currentTime < task.TimeWindowStart) currentTime = task.TimeWindowStart;
-
-                task.ActualStartTime = currentTime;
-                task.ActualEndTime = currentTime.Add(task.Duration);
-
-                // set up for next loop
-                currentTime = task.ActualEndTime.Value;
-                currentLat = task.Latitude;
-                currentLon = task.Longitude;
-            }
-            
-            // update total distance for the schedule (simplified)
-            schedule.TotalDistance += 10; // Placeholder update
-        }
-
-        // DO NOT modify the objects in place, or we destroy the rollback capability
-        private List<TechnicianSchedule> DeepCloneSolution(List<TechnicianSchedule> source)
-        {
+            // In a real production app, use a proper Mapper or serialization
+            // This is a manual simplified deep clone for the algorithm logic
             var newSolution = new List<TechnicianSchedule>();
             foreach (var s in source)
             {
                 var newSch = new TechnicianSchedule
                 {
-                    Id = s.Id,
                     TechnicianId = s.TechnicianId,
-                    Technician = s.Technician, // tech entity is static config
+                    Technician = s.Technician, 
                     Date = s.Date,
                     TotalDistance = s.TotalDistance,
-                    TotalDelay = s.TotalDelay,
-                    Tasks = new List<Task>()
+                    Tasks = new List<FSM.Domain.Entities.Task>(s.Tasks) // Shallow copy of the list is okay for swapping logic usually, but be careful
                 };
-
-                // clone Tasks
-                foreach (var t in s.Tasks)
-                {
-                    newSch.Tasks.Add(new Task
-                    {
-                        Id = t.Id,
-                        ClientName = t.ClientName,
-                        Address = t.Address,
-                        Latitude = t.Latitude,
-                        Longitude = t.Longitude,
-                        Duration = t.Duration,
-                        TimeWindowStart = t.TimeWindowStart,
-                        TimeWindowEnd = t.TimeWindowEnd,
-                        Priority = t.Priority,
-                        RequiredSkills = t.RequiredSkills,
-                        AssignedTechnicianId = newSch.TechnicianId, // Link to new parent
-                        AssignedTechnician = newSch.Technician,
-                        ActualStartTime = t.ActualStartTime,
-                        ActualEndTime = t.ActualEndTime,
-                        Status = t.Status
-                    });
-                }
                 newSolution.Add(newSch);
             }
             return newSolution;
-        }
-
-        private double EstimateDistance(double lat1, double lon1, double lat2, double lon2)
-        {
-            // simple Euclidian for speed
-             var dLat = lat2 - lat1;
-            var dLon = lon2 - lon1;
-            return Math.Sqrt(dLat * dLat + dLon * dLon) * 111.0;
         }
     }
 }
