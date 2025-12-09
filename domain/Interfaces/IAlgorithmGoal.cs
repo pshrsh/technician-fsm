@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using FSM.Domain.Entities; //
+using FSM.Domain.Entities; 
 
 namespace FSM.Domain.Interfaces
 {
