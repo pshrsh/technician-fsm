@@ -1,64 +1,16 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
-using FSM.Application.Algorithms;
+using FSM.Application.Services;
 using FSM.Domain.Entities;
 using FSM.Domain.Enums;
-using Domain.Entities; // For Task
-using Domain.Enums;    // For TaskStatus
 
 namespace FSM.Api
 {
     class Program
     {
-        static async System.Threading.Tasks.Task Main(string[] args)
-        {
-            Console.WriteLine("--- Field Service Management Scheduler ---");
-
-            // 1. Setup Dummy Data
-            var technicians = GetDummyTechnicians();
-            var tasks = GetDummyTasks();
-
-            // 2. Initialize Components
-            var objectiveFunc = new WeightedObjectiveFunction();
-            var greedy = new GreedyScheduler();
-            var optimizer = new SimulatedAnnealingEngine(objectiveFunc);
-
-            // 3. Run Initial Greedy Solution
-            Console.WriteLine("\n[1] Running Greedy Algorithm...");
-            var initialSolution = greedy.GenerateInitialSchedule(technicians, tasks);
-            
-            PrintScore("Greedy", initialSolution, objectiveFunc);
-
-            // 4. Run Optimization (Simulated Annealing)
-            Console.WriteLine("\n[2] Running Simulated Annealing Optimization...");
-            var optimizedSolution = await optimizer.OptimizeScheduleAsync(initialSolution, CancellationToken.None);
-
-            PrintScore("Optimized", optimizedSolution, objectiveFunc);
-            
-            // 5. Show Routes
-            Console.WriteLine("\n--- Final Routes ---");
-            foreach(var sched in optimizedSolution)
-            {
-                Console.WriteLine($"Technician: {sched.Technician.Name}");
-                foreach(var t in sched.Tasks)
-                {
-                    Console.WriteLine($"  - Task {t.Id} (Client: {t.ClientName})");
-                }
-            }
-        }
-
-        static void PrintScore(string phase, List<TechnicianSchedule> solution, WeightedObjectiveFunction scorer)
-        {
-            var breakdown = scorer.GetDetailedScore(solution);
-            Console.WriteLine($"--- {phase} Results ---");
-            Console.WriteLine($"   Total Score (Cost): {breakdown.FinalWeightedScore:F2}");
-            Console.WriteLine($"   Travel Time: {breakdown.TotalTravelTime:F1} min");
-            Console.WriteLine($"   Delays: {breakdown.TotalDelay:F1} min");
-        }
-
-        static List<Technician> GetDummyTechnicians()
+        // Keep these public static so the Service can borrow them for seeding if needed
+        public static List<Technician> GetDummyTechnicians()
         {
             return new List<Technician>
             {
@@ -66,7 +18,7 @@ namespace FSM.Api
                 { 
                     Id = 1, Name = "Dvir (Elec)", 
                     Skills = SkillSet.Electric | SkillSet.General,
-                    BaseLatitude = 32.1, BaseLongitude = 34.8, // Tel Aviv area approx
+                    BaseLatitude = 32.1, BaseLongitude = 34.8, 
                     ShiftStart = TimeSpan.FromHours(8), ShiftEnd = TimeSpan.FromHours(17),
                     EstimatedTravelSpeedKmH = 30
                 },
@@ -81,15 +33,87 @@ namespace FSM.Api
             };
         }
 
-        static List<Task> GetDummyTasks()
+        static async System.Threading.Tasks.Task Main(string[] args)
         {
-            var today = DateTime.Today;
-            return new List<Task>
+            var service = new FsmService();
+
+            while (true)
             {
-                new Task { Id=101, ClientName="Client A", Priority=TaskPriority.High, Duration=TimeSpan.FromHours(1), TimeWindowStart=today.AddHours(9), TimeWindowEnd=today.AddHours(12), RequiredSkills=SkillSet.Electric, Latitude=32.12, Longitude=34.82 },
-                new Task { Id=102, ClientName="Client B", Priority=TaskPriority.Regular, Duration=TimeSpan.FromHours(2), TimeWindowStart=today.AddHours(10), TimeWindowEnd=today.AddHours(14), RequiredSkills=SkillSet.Plumbing, Latitude=32.22, Longitude=34.92 },
-                new Task { Id=103, ClientName="Client C", Priority=TaskPriority.Urgent, Duration=TimeSpan.FromHours(0.5), TimeWindowStart=today.AddHours(8), TimeWindowEnd=today.AddHours(10), RequiredSkills=SkillSet.General, Latitude=32.11, Longitude=34.81 }
-            };
+                Console.Clear();
+                Console.WriteLine("=== FSM SCHEDULER CLI ===");
+                Console.WriteLine($"Database: {service.Tasks.Count} Tasks, {service.Technicians.Count} Technicians");
+                Console.WriteLine("-----------------------");
+                Console.WriteLine("1. List All Tasks");
+                Console.WriteLine("2. Add New Task");
+                Console.WriteLine("3. Run Scheduler");
+                Console.WriteLine("4. Exit");
+                Console.Write("Select: ");
+                
+                var choice = Console.ReadLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        foreach (var t in service.Tasks)
+                        {
+                            Console.WriteLine($"[ID: {t.Id}] {t.ClientName} - {t.Priority} (Window: {t.TimeWindowStart.Hour}-{t.TimeWindowEnd.Hour})");
+                        }
+                        Console.ReadKey();
+                        break;
+
+                    case "2":
+                        AddNewTaskUI(service);
+                        break;
+
+                    case "3":
+                        var results = await service.RunOptimizationAsync();
+                        PrintResults(results);
+                        Console.ReadKey();
+                        break;
+
+                    case "4":
+                        return;
+                }
+            }
+        }
+
+        static void AddNewTaskUI(FsmService service)
+        {
+            Console.WriteLine("\n--- New Task ---");
+            var t = new FSM.Domain.Entities.Task();
+            
+            Console.Write("Client Name: ");
+            t.ClientName = Console.ReadLine();
+            
+            Console.Write("Duration (hours): ");
+            if(double.TryParse(Console.ReadLine(), out double dur)) t.Duration = TimeSpan.FromHours(dur);
+            
+            // Simplified Inputs for Demo
+            t.Priority = TaskPriority.Regular; 
+            t.RequiredSkills = SkillSet.General; 
+            t.TimeWindowStart = DateTime.Today.AddHours(9); 
+            t.TimeWindowEnd = DateTime.Today.AddHours(17);
+            
+            // Hardcoded location for simplicity (Tel Aviv center)
+            t.Latitude = 32.0853; 
+            t.Longitude = 34.7818;
+
+            service.AddTask(t);
+            Console.WriteLine("Task Saved!");
+            System.Threading.Thread.Sleep(1000);
+        }
+
+        static void PrintResults(List<TechnicianSchedule> schedules)
+        {
+            Console.WriteLine("\n--- OPTIMIZED ROUTES ---");
+            foreach (var s in schedules)
+            {
+                Console.WriteLine($"\nTechnician: {s.Technician.Name} (Count: {s.Tasks.Count})");
+                foreach (var t in s.Tasks)
+                {
+                    Console.WriteLine($"   -> {t.ActualStartTime?.ToString("HH:mm")} : {t.ClientName}");
+                }
+            }
         }
     }
 }
