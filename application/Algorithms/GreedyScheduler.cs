@@ -4,6 +4,7 @@ using System.Linq;
 using FSM.Application.Interfaces;
 using FSM.Domain.Entities;
 using FSM.Domain.Enums;
+using Task = FSM.Domain.Entities.Task; 
 
 namespace FSM.Application.Algorithms
 {
@@ -23,50 +24,34 @@ namespace FSM.Application.Algorithms
             foreach (var task in sortedTasks)
             {
                 TechnicianSchedule bestSchedule = null;
-                double bestScore = double.MaxValue; // Lower is better (minimizing distance/time)
+                double bestScore = double.MaxValue; 
                 DateTime bestStartTime = DateTime.MaxValue;
 
-                // Try to find the best technician for this task
                 foreach (var schedule in schedules)
                 {
                     var tech = schedule.Technician;
-                    
-                    // check skill
                     if (!tech.HasSkill(task.RequiredSkills)) continue;
 
-                    // Time & Location Calculation
-                    // Get the location/time of the last task in the schedule (or Base if empty)
                     var lastTask = schedule.Tasks.LastOrDefault();
                     
                     double startLat = lastTask?.Latitude ?? tech.BaseLatitude;
                     double startLon = lastTask?.Longitude ?? tech.BaseLongitude;
                     DateTime availableTime = lastTask?.ActualEndTime ?? DateTime.Today.Add(tech.ShiftStart);
 
-                    // Estimate Travel (Euclidean for now - simpler than Map API for this stage)
+                    // Simple Distance Calc
                     double distanceKm = CalculateDistance(startLat, startLon, task.Latitude, task.Longitude);
                     double travelMinutes = (distanceKm / tech.EstimatedTravelSpeedKmH) * 60;
                     
                     DateTime arrivalTime = availableTime.AddMinutes(travelMinutes);
-                    DateTime startTaskTime = arrivalTime;
-
-                    // If we arrive before the window we wait.
-                    if (arrivalTime < task.TimeWindowStart)
-                    {
-                        startTaskTime = task.TimeWindowStart;
-                    }
-
+                    DateTime startTaskTime = arrivalTime < task.TimeWindowStart ? task.TimeWindowStart : arrivalTime;
                     DateTime finishTime = startTaskTime.Add(task.Duration);
 
-                    // Shift End Constraint
+                    // Constraints
                     DateTime shiftEnd = DateTime.Today.Add(tech.ShiftEnd);
                     if (finishTime > shiftEnd) continue;
-
-                    // Window Constraint (Must start before window ends)
                     if (startTaskTime > task.TimeWindowEnd) continue;
 
-                    // We want the tech who is closest and available earliest
                     double score = distanceKm; 
-
                     if (score < bestScore)
                     {
                         bestScore = score;
@@ -75,26 +60,22 @@ namespace FSM.Application.Algorithms
                     }
                 }
 
-                // Assign the task if we found a valid technician
                 if (bestSchedule != null)
                 {
                     task.AssignedTechnicianId = bestSchedule.TechnicianId;
                     task.ActualStartTime = bestStartTime;
                     task.ActualEndTime = bestStartTime.Add(task.Duration);
                     task.SequenceIndex = bestSchedule.Tasks.Count + 1;
-                    task.Status = TaskStatus.Scheduled;
+                    task.Status = FSM.Domain.Enums.TaskStatus.Scheduled;
 
                     bestSchedule.Tasks.Add(task);
-                    
-                    // Update schedule tracking stats
-                    bestSchedule.TotalDistance += bestScore; // rough estimate
+                    bestSchedule.TotalDistance += bestScore;
                 }
                 else
                 {
-                    unassignedTasks.Add(task); // Unscheduled
+                    unassignedTasks.Add(task);
                 }
             }
-
             return schedules;
         }
 
@@ -114,13 +95,12 @@ namespace FSM.Application.Algorithms
             return list;
         }
 
-        // Simple Haversine or Euclidean distance helper
         private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
         {
-            // Simplified Euclidean approximation for "local" distances
+            // Simple Euclidean
             var dLat = lat2 - lat1;
             var dLon = lon2 - lon1;
             return Math.Sqrt(dLat * dLat + dLon * dLon) * 111.0;
         }
     }
-}   
+}
