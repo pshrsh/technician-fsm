@@ -7,8 +7,7 @@ using FSM.Application.Algorithms;
 using FSM.Domain.Entities;
 using FSM.Infrastructure.Persistence;
 
-// Alias to prevent conflict
-using TaskEntity = FSM.Domain.Entities.Task;
+using TaskEntity = FSM.Domain.Entities.Task; // Made an alias to avoid ambiguity
 
 namespace FSM.Application.Services
 {
@@ -48,6 +47,29 @@ namespace FSM.Application.Services
             }
         }
 
+        public void RemoveOutdatedTasks() //USE LATER
+        {
+            // Identify tasks whose deadline has already passed
+            var outdatedTasks = Tasks.Where(t => t.TimeWindowEnd < DateTime.Now).ToList();
+
+            if (outdatedTasks.Any())
+            {
+                Console.WriteLine($"[Cleanup] Found {outdatedTasks.Count} outdated tasks. Removing them...");
+                
+                foreach (var task in outdatedTasks)
+                {
+                    Tasks.Remove(task);
+                }
+
+                // Save the cleaned list
+                _taskRepo.Save(Tasks);
+            }
+            else
+            {
+                Console.WriteLine("[Cleanup] No outdated tasks found.");
+            }
+        }
+
         public void AddTask(TaskEntity task)
         {
             task.Id = Tasks.Any() ? Tasks.Max(t => t.Id) + 1 : 101;
@@ -56,15 +78,24 @@ namespace FSM.Application.Services
         }
 
         // FIX: Explicitly use System.Threading.Tasks.Task
-        public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
+    public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
+    {
+        Console.WriteLine("Generating Initial Schedule...");
+    
+        // Now returns { Schedules, UnscheduledTasks }
+        var initialResult = _greedy.GenerateInitialSchedule(Technicians, Tasks);
+    
+        if (initialResult.UnscheduledTasks.Any())
         {
-            Console.WriteLine("Generating Initial Schedule...");
-            var initialSolution = _greedy.GenerateInitialSchedule(Technicians, Tasks);
-            
-            Console.WriteLine("Optimizing Routes...");
-            var finalSolution = await _optimizer.OptimizeScheduleAsync(initialSolution, CancellationToken.None);
-            
-            return finalSolution;
+            Console.WriteLine($"[Warning] {initialResult.UnscheduledTasks.Count} tasks could not be scheduled.");
         }
+
+        Console.WriteLine("Optimizing Routes...");
+    
+        // We pass ONLY the schedules to the optimizer
+        var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
+    
+        return finalSolution;
+       }
     }
 }

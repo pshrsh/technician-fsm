@@ -1,4 +1,4 @@
-using System;
+    using System;
 using FSM.Domain.Enums; // Required to use SkillSet
 
 namespace FSM.Application.DTOs

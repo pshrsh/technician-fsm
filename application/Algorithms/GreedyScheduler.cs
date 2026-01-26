@@ -2,20 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FSM.Application.Interfaces;
+using FSM.Application.DTOs; // Add this
 using FSM.Domain.Entities;
 using FSM.Domain.Enums;
-using Task = FSM.Domain.Entities.Task; 
+using TaskEntity = FSM.Domain.Entities.Task;
 
 namespace FSM.Application.Algorithms
 {
     public class GreedyScheduler : IInitialScheduler
     {
-        public List<TechnicianSchedule> GenerateInitialSchedule(List<Technician> technicians, List<Task> tasks)
+        public SchedulerResult GenerateInitialSchedule(List<Technician> technicians, List<TaskEntity> tasks)
         {
             var schedules = InitializeSchedules(technicians);
-            var unassignedTasks = new List<Task>();
+            var unassigned = new List<TaskEntity>();
 
-            // Sort tasks: Urgent first, then by earliest deadline
+            // Sort: Urgent first, then by earliest deadline
             var sortedTasks = tasks
                 .OrderByDescending(t => t.Priority)
                 .ThenBy(t => t.TimeWindowEnd)
@@ -24,39 +25,41 @@ namespace FSM.Application.Algorithms
             foreach (var task in sortedTasks)
             {
                 TechnicianSchedule bestSchedule = null;
-                double bestScore = double.MaxValue; 
+                double bestScore = double.MaxValue;
                 DateTime bestStartTime = DateTime.MaxValue;
 
                 foreach (var schedule in schedules)
                 {
                     var tech = schedule.Technician;
+                    
+                    // 1. Skill Check
                     if (!tech.HasSkill(task.RequiredSkills)) continue;
 
                     var lastTask = schedule.Tasks.LastOrDefault();
-                    
                     double startLat = lastTask?.Latitude ?? tech.BaseLatitude;
                     double startLon = lastTask?.Longitude ?? tech.BaseLongitude;
-                    DateTime availableTime = lastTask?.ActualEndTime ?? DateTime.Today.Add(tech.ShiftStart);
-
-                    // Simple Distance Calc
-                    double distanceKm = CalculateDistance(startLat, startLon, task.Latitude, task.Longitude);
-                    double travelMinutes = (distanceKm / tech.EstimatedTravelSpeedKmH) * 60;
                     
+                    // 2. Time Check
+                    DateTime availableTime = lastTask?.ActualEndTime ?? schedule.Date.Add(tech.ShiftStart);
+                    
+                    double distKm = CalculateDistance(startLat, startLon, task.Latitude, task.Longitude);
+                    double travelMinutes = (distKm / tech.EstimatedTravelSpeedKmH) * 60;
+
                     DateTime arrivalTime = availableTime.AddMinutes(travelMinutes);
-                    DateTime startTaskTime = arrivalTime < task.TimeWindowStart ? task.TimeWindowStart : arrivalTime;
-                    DateTime finishTime = startTaskTime.Add(task.Duration);
+                    DateTime startTask = arrivalTime < task.TimeWindowStart ? task.TimeWindowStart : arrivalTime;
+                    DateTime finishTime = startTask.Add(task.Duration);
+
+                    DateTime shiftEnd = schedule.Date.Add(tech.ShiftEnd);
 
                     // Constraints
-                    DateTime shiftEnd = DateTime.Today.Add(tech.ShiftEnd);
-                    if (finishTime > shiftEnd) continue;
-                    if (startTaskTime > task.TimeWindowEnd) continue;
+                    if (finishTime > shiftEnd) continue; // Shift Over
+                    if (startTask > task.TimeWindowEnd) continue; // Window Missed
 
-                    double score = distanceKm; 
-                    if (score < bestScore)
+                    if (distKm < bestScore)
                     {
-                        bestScore = score;
+                        bestScore = distKm;
                         bestSchedule = schedule;
-                        bestStartTime = startTaskTime;
+                        bestStartTime = startTask;
                     }
                 }
 
@@ -65,7 +68,6 @@ namespace FSM.Application.Algorithms
                     task.AssignedTechnicianId = bestSchedule.TechnicianId;
                     task.ActualStartTime = bestStartTime;
                     task.ActualEndTime = bestStartTime.Add(task.Duration);
-                    task.SequenceIndex = bestSchedule.Tasks.Count + 1;
                     task.Status = FSM.Domain.Enums.TaskStatus.Scheduled;
 
                     bestSchedule.Tasks.Add(task);
@@ -73,10 +75,17 @@ namespace FSM.Application.Algorithms
                 }
                 else
                 {
-                    unassignedTasks.Add(task);
+                    task.Status = FSM.Domain.Enums.TaskStatus.Pending;
+                    unassigned.Add(task);
                 }
             }
-            return schedules;
+
+            // FIX: Return the composite result
+            return new SchedulerResult 
+            { 
+                Schedules = schedules, 
+                UnscheduledTasks = unassigned 
+            };
         }
 
         private List<TechnicianSchedule> InitializeSchedules(List<Technician> technicians)
@@ -89,7 +98,7 @@ namespace FSM.Application.Algorithms
                     TechnicianId = tech.Id,
                     Technician = tech,
                     Date = DateTime.Today,
-                    Tasks = new List<Task>()
+                    Tasks = new List<TaskEntity>()
                 });
             }
             return list;
@@ -97,7 +106,6 @@ namespace FSM.Application.Algorithms
 
         private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
         {
-            // Simple Euclidean
             var dLat = lat2 - lat1;
             var dLon = lon2 - lon1;
             return Math.Sqrt(dLat * dLat + dLon * dLon) * 111.0;

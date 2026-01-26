@@ -7,5 +7,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>FSM</RootNamespace>
   </PropertyGroup>
-
+<ItemGroup>
+    <Compile Remove="Fsm.Tests\**" />
+    <EmbeddedResource Remove="Fsm.Tests\**" />
+    <None Remove="Fsm.Tests\**" />
+  </ItemGroup>
 </Project>
