@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "7sPxAzc0VFk=",
+  "dgSpecHash": "ToMbZVovE+Q=",
   "success": true,
-  "projectFilePath": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\Fsm.Web\\Fsm.Web.csproj",
+  "projectFilePath": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\Fsm.Web\\Fsm.Web.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\dabur\\.nuget\\packages\\microsoft.aspnetcore.openapi\\8.0.0\\microsoft.aspnetcore.openapi.8.0.0.nupkg.sha512",
     "C:\\Users\\dabur\\.nuget\\packages\\microsoft.extensions.apidescription.server\\6.0.5\\microsoft.extensions.apidescription.server.6.0.5.nupkg.sha512",

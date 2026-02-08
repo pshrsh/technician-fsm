@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSM Command Center</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔧</text></svg>">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; }
+        
+        /* Sidebar */
+        #sidebar { width: 320px; background: #f8f9fa; padding: 20px; overflow-y: auto; border-right: 2px solid #dee2e6; display: flex; flex-direction: column; gap: 15px; }
+        h2 { margin-top: 0; color: #343a40; }
+        
+        /* Map Area */
+        #map { flex-grow: 1; height: 100%; position: relative; }
+
+        /* Floating Stats Panel (New Feature) */
+        #stats-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            min-width: 200px;
+        }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
+        .stat-val { font-weight: bold; color: #007bff; }
+        
+       /* Task Cards - Compact & Stacked */
+        .card { 
+            background: white; 
+            padding: 10px;      /* Smaller padding */
+            border-radius: 6px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
+            border: 1px solid #e9ecef; 
+            
+            /* Flexbox for vertical layout */
+            display: flex;
+            flex-direction: column; 
+            gap: 8px;           /* Small gap between text and button */
+        }
+        
+        /* Delete Button - Compact at bottom */
+        .btn-delete {
+            background: #dc3545; 
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 0;     /* Slimmer vertical padding */
+            cursor: pointer;
+            font-size: 0.8rem;  /* Smaller text */
+            width: 100%; 
+            transition: background 0.2s;
+        }
+        .btn-delete:hover { background: #c82333; }
+
+        /* Inputs & Buttons */
+        input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        .btn-add { background: #28a745; }
+        .btn-add:hover { background: #218838; }
+        .btn-run { background: #007bff; }
+        .btn-run:hover { background: #0069d9; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>📡 Dispatch Center</h2>
+
+        <div class="card" style="background: #e9ecef;">
+            <h3>➕ New Mission</h3>
+            <input type="text" id="tName" placeholder="Client Name">
+            <input type="text" id="tLat" placeholder="Lat (e.g. 32.08)">
+            <input type="text" id="tLon" placeholder="Lon (e.g. 34.78)">
+            <button class="btn-add" onclick="addNewTask()">Add Task</button>
+        </div>
+
+        <button class="btn-run" onclick="runScheduler()">🚀 Run Optimizer</button>
+        
+        <h3>📋 Active Tasks</h3>
+        <div id="task-list">Loading...</div>
+    </div>
+
+    <div id="map">
+        <div id="stats-panel">
+            <div class="stat-row"><span>Total Tasks:</span> <span id="stat-count" class="stat-val">0</span></div>
+            <div class="stat-row"><span>Total Distance:</span> <span id="stat-dist" class="stat-val">0 km</span></div>
+            <div class="stat-row"><span>Active Techs:</span> <span id="stat-techs" class="stat-val">0</span></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize Map centered on Tel Aviv
+        var map = L.map('map').setView([32.0853, 34.7818], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        
+        var markers = [];
+        var polylines = []; // Store lines to clear them later
+
+        // Unique colors for technicians
+        function getTechColor(id) {
+            const colors = ['#007bff', '#dc3545', '#28a745', '#6f42c1', '#fd7e14', '#17a2b8'];
+            return colors[(id || 0) % colors.length];
+        }
+
+        async function loadTasks() {
+            try {
+                const res = await fetch('/api/tasks');
+                const tasks = await res.json();
+                
+                const list = document.getElementById('task-list');
+                list.innerHTML = "";
+                
+                // Clear old map elements
+                markers.forEach(m => map.removeLayer(m));
+                polylines.forEach(p => map.removeLayer(p));
+                markers = [];
+                polylines = [];
+
+                // Stats Variables
+                let totalDist = 0;
+                let activeTechs = new Set();
+                const techRoutes = {}; // Helper for drawing lines
+
+                tasks.forEach(task => {
+                    // 1. Add to Sidebar List
+                    const div = document.createElement('div');
+                    div.className = `card task-card status-${task.status === 1 ? 'scheduled' : 'pending'}`;
+                    
+                    div.innerHTML = `
+                        <div style="line-height: 1.4;">
+                            <strong>${task.clientName}</strong><br>
+                            <span style="font-size: 0.85rem; color: #555;">
+                                Tech: ${task.assignedTechnicianId || '-'} | Seq: ${task.sequenceIndex}
+                            </span>
+                        </div>
+                        <button class="btn-delete" onclick="deleteTask(${task.id})">Cancel</button>
+                    `;
+                    list.appendChild(div);
+
+                    // 2. Map Marker Logic
+                    if (task.latitude && task.longitude) {
+                        const color = task.status === 1 ? getTechColor(task.assignedTechnicianId) : 'orange';
+                        
+                        // Use CircleMarker for a cleaner "Route Node" look
+                        const marker = L.circleMarker([task.latitude, task.longitude], {
+                            radius: 8,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.9
+                        }).addTo(map).bindPopup(`<b>${task.clientName}</b><br>Tech ID: ${task.assignedTechnicianId}`);
+                        
+                        markers.push(marker);
+
+                        // 3. Group tasks for drawing lines
+                        if (task.status === 1 && task.assignedTechnicianId) {
+                            activeTechs.add(task.assignedTechnicianId);
+                            if (!techRoutes[task.assignedTechnicianId]) techRoutes[task.assignedTechnicianId] = [];
+                            techRoutes[task.assignedTechnicianId].push(task);
+                        }
+                    }
+                });
+
+                // 4. Draw Lines & Calc Distance
+                Object.keys(techRoutes).forEach(techId => {
+                    const route = techRoutes[techId];
+                    // Sort by sequence (1 -> 2 -> 3)
+                    route.sort((a, b) => a.sequenceIndex - b.sequenceIndex);
+                    
+                    const latlngs = route.map(t => L.latLng(t.latitude, t.longitude));
+
+                    // Calculate distance for this tech
+                    for(let i=0; i<latlngs.length-1; i++) {
+                        totalDist += latlngs[i].distanceTo(latlngs[i+1]) / 1000; // Meters to KM
+                    }
+
+                    // Draw the polyline
+                    const polyline = L.polyline(latlngs, {
+                        color: getTechColor(techId),
+                        weight: 4,
+                        opacity: 0.7,
+                        dashArray: '5, 10'
+                    }).addTo(map);
+                    polylines.push(polyline);
+                });
+
+                // 5. Update Stats Panel
+                document.getElementById('stat-count').innerText = tasks.length;
+                document.getElementById('stat-dist').innerText = totalDist.toFixed(1) + " km";
+                document.getElementById('stat-techs').innerText = activeTechs.size;
+
+            } catch (err) { console.error(err); }
+        }
+
+        async function addNewTask() {
+            const name = document.getElementById('tName').value;
+            const lat = parseFloat(document.getElementById('tLat').value);
+            const lon = parseFloat(document.getElementById('tLon').value);
+
+            if(!name || !lat || !lon) { alert("Please fill all fields"); return; }
+
+            const task = {
+                Id: 0, 
+                ClientName: name,      
+                Latitude: lat,         
+                Longitude: lon,        
+                Duration: "01:00:00",  
+                RequiredSkills: 1,     
+                Priority: 1            
+            };
+
+            await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(task)
+            });
+
+            document.getElementById('tName').value = "";
+            loadTasks();
+        }
+
+        // New Feature: Delete/Cancel Task
+        async function deleteTask(id) {
+            if(!confirm("Are you sure you want to cancel this task?")) return;
+
+            // Important: We try to DELETE from the API
+            const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+            
+            if(res.ok) {
+                loadTasks(); // Reload map
+            } else {
+                alert("Error cancelling task. Check if your backend supports DELETE.");
+            }
+        }
+
+        async function runScheduler() {
+            const btn = document.querySelector('.btn-run');
+            btn.innerText = "Thinking...";
+            await fetch('/api/tasks/schedule', { method: 'POST' });
+            alert("Optimization Complete! Routes updated.");
+            loadTasks(); 
+            btn.innerText = "🚀 Run Optimizer";
+        }
+
+        // Initial Load
+        loadTasks();
+    </script>
+</body>
+</html>

@@ -70,32 +70,44 @@ namespace FSM.Application.Services
             }
         }
 
-        public void AddTask(TaskEntity task)
+public void AddTask(TaskEntity task)
         {
-            task.Id = Tasks.Any() ? Tasks.Max(t => t.Id) + 1 : 101;
+            int newId = Tasks.Any() ? Tasks.Max(t => t.Id) + 1 : 1;
+            task.Id = newId;
             Tasks.Add(task);
             _taskRepo.Save(Tasks);
         }
 
         // FIX: Explicitly use System.Threading.Tasks.Task
     public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
-    {
-        Console.WriteLine("Generating Initial Schedule...");
-    
-        // Now returns { Schedules, UnscheduledTasks }
-        var initialResult = _greedy.GenerateInitialSchedule(Technicians, Tasks);
-    
-        if (initialResult.UnscheduledTasks.Any())
         {
-            Console.WriteLine($"[Warning] {initialResult.UnscheduledTasks.Count} tasks could not be scheduled.");
+            Console.WriteLine("Generating Initial Schedule...");
+            
+            // 1. Run Greedy
+            var initialResult = _greedy.GenerateInitialSchedule(Technicians, Tasks);
+            
+            if (initialResult.UnscheduledTasks.Any())
+            {
+                Console.WriteLine($"[Warning] {initialResult.UnscheduledTasks.Count} tasks could not be scheduled.");
+            }
+
+            Console.WriteLine("Optimizing Routes...");
+            
+            // 2. Run Simulated Annealing
+            var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
+            
+            _taskRepo.Save(Tasks);
+
+            return finalSolution;
         }
 
-        Console.WriteLine("Optimizing Routes...");
-    
-        // We pass ONLY the schedules to the optimizer
-        var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
-    
-        return finalSolution;
-       }
+        public bool DeleteTask(int id)
+        {
+            var task = Tasks.FirstOrDefault(t => t.Id == id);
+            if (task == null) return false;
+            Tasks.Remove(task);
+            _taskRepo.Save(Tasks);
+            return true;
+    }
     }
 }

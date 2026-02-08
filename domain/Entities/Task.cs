@@ -1,43 +1,39 @@
 using System;
-using FSM.Domain.Enums; // Fix: Updated Namespace
+using System.Text.Json.Serialization;
+using FSM.Domain.Enums;
 
-namespace FSM.Domain.Entities // Fix: Added 'FSM.'
+namespace FSM.Domain.Entities
 {
     public class Task
     {
         public int Id { get; set; }
-        public string ClientName { get; set; }
-        public string Address { get; set; }
+
+        public string ClientName { get; set; } = string.Empty;
         
         public double Latitude { get; set; }
         public double Longitude { get; set; }
+        public string? Address { get; set; } 
 
-        public TimeSpan Duration { get; set; } 
-
-        public DateTime TimeWindowStart { get; set; } 
-
-        public DateTime TimeWindowEnd { get; set; } 
-
+        // Use Enums
         public TaskPriority Priority { get; set; } 
+        public SkillSet RequiredSkills { get; set; }
 
-        public SkillSet RequiredSkills { get; set; } 
+        // FIX: Explicitly tell C# to use YOUR enum, not the system one
+        public FSM.Domain.Enums.TaskStatus Status { get; set; } 
 
-        public int? AssignedTechnicianId { get; set; }
-        
-        public virtual Technician AssignedTechnician { get; set; }
+        public TimeSpan Duration { get; set; } = TimeSpan.FromHours(1);
+        public DateTime TimeWindowStart { get; set; }
+        public DateTime TimeWindowEnd { get; set; }
 
-        public int SequenceIndex { get; set; } 
-
-        public DateTime? ActualStartTime { get; set; } 
-        
+        // Algorithm Fields
+        public int SequenceIndex { get; set; }
+        public DateTime? ActualStartTime { get; set; }
         public DateTime? ActualEndTime { get; set; }
 
-        // Fix: Explicitly use the Enum to avoid confusion with System.Threading.Tasks.TaskStatus
-        public FSM.Domain.Enums.TaskStatus Status { get; set; } = FSM.Domain.Enums.TaskStatus.Pending;
-
-        public bool IsTimeInWindow(DateTime time)
-        {
-            return time >= TimeWindowStart && time <= TimeWindowEnd;
-        }
+        // Technician Assignment
+        public int? AssignedTechnicianId { get; set; }
+        
+        [JsonIgnore]
+        public Technician? AssignedTechnician { get; set; }
     }
 }

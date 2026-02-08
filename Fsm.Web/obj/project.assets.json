@@ -490,11 +490,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\Fsm.Web\\Fsm.Web.csproj",
+      "projectUniqueName": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\Fsm.Web\\Fsm.Web.csproj",
       "projectName": "Fsm.Web",
-      "projectPath": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\Fsm.Web\\Fsm.Web.csproj",
+      "projectPath": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\Fsm.Web\\Fsm.Web.csproj",
       "packagesPath": "C:\\Users\\dabur\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\Fsm.Web\\obj\\",
+      "outputPath": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\Fsm.Web\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\dabur\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -509,8 +509,8 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\projfile.csproj": {
-              "projectPath": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\projfile.csproj"
+            "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\projfile.csproj": {
+              "projectPath": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\projfile.csproj"
             }
           }
         }

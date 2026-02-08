@@ -4,8 +4,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Add services to the container.
 // This tells the app to look for [ApiController] classes (like yours)
-builder.Services.AddControllers();
-
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // This allows "clientName" and "ClientName" to both work
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 // 2. Add Swagger/OpenAPI support
 // This generates the documentation page you are trying to see
 builder.Services.AddEndpointsApiExplorer();
@@ -13,18 +17,21 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// 3. Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(); // This enables the nice blue/white webpage
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
+// FIX: Enable serving HTML/CSS/JS files
+app.UseStaticFiles(); 
 
-// 4. Map the controllers so they can respond to requests
+app.UseAuthorization();
 app.MapControllers();
+
+// FIX: If the user visits the root URL, show the dashboard
+app.MapFallbackToFile("index.html"); 
 
 app.Run();

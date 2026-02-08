@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\projfile.csproj": {}
+    "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\projfile.csproj": {}
   },
   "projects": {
-    "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\projfile.csproj": {
+    "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\projfile.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\projfile.csproj",
+        "projectUniqueName": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\projfile.csproj",
         "projectName": "projfile",
-        "projectPath": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\projfile.csproj",
+        "projectPath": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\projfile.csproj",
         "packagesPath": "C:\\Users\\dabur\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\dabur\\desktop\\school\\technician-fsm\\obj\\",
+        "outputPath": "C:\\Users\\dabur\\Desktop\\school\\technician-fsm\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\dabur\\AppData\\Roaming\\NuGet\\NuGet.Config"
