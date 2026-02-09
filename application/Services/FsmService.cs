@@ -7,7 +7,8 @@ using FSM.Application.Algorithms;
 using FSM.Domain.Entities;
 using FSM.Infrastructure.Persistence;
 
-using TaskEntity = FSM.Domain.Entities.Task; // Made an alias to avoid ambiguity
+// Alias to distinguish between System.Threading.Tasks.Task and your Entity Task
+using TaskEntity = FSM.Domain.Entities.Task; 
 
 namespace FSM.Application.Services
 {
@@ -39,66 +40,53 @@ namespace FSM.Application.Services
         {
             Technicians = _techRepo.Load();
             Tasks = _taskRepo.Load();
-            
-            if (!Technicians.Any())
+
+            // --- SELF-HEALING LOGIC ---
+            // Check if data is empty OR if technicians are "Broken" (No Skills / No Shift)
+            bool isBroken = Technicians.Any(t => t.Skills == FSM.Domain.Enums.SkillSet.None || t.ShiftEnd == TimeSpan.Zero);
+
+            if (!Technicians.Any() || isBroken)
             {
-                Technicians = FSM.Cli.Program.GetDummyTechnicians();
+                Console.WriteLine("⚠️ Invalid or Empty Data detected. Resetting Technicians...");
+                
+                Technicians.Clear();
+                
+                // Add Default Technicians (With Skills & Shifts thanks to the new Constructor)
+                AddTechnician(new Technician { Name = "David (Tel Aviv)", BaseLatitude = 32.0853, BaseLongitude = 34.7818 });
+                AddTechnician(new Technician { Name = "Sarah (Haifa)", BaseLatitude = 32.7940, BaseLongitude = 34.9896 });
+                AddTechnician(new Technician { Name = "Danny (Jerusalem)", BaseLatitude = 31.7683, BaseLongitude = 35.2137 });
+
                 _techRepo.Save(Technicians);
             }
         }
 
-        public void RemoveOutdatedTasks() //USE LATER
+        //  technician methods
+        public List<Technician> GetAllTechnicians() => Technicians;
+
+        public Technician AddTechnician(Technician tech)
         {
-            // Identify tasks whose deadline has already passed
-            var outdatedTasks = Tasks.Where(t => t.TimeWindowEnd < DateTime.Now).ToList();
-
-            if (outdatedTasks.Any())
-            {
-                Console.WriteLine($"[Cleanup] Found {outdatedTasks.Count} outdated tasks. Removing them...");
-                
-                foreach (var task in outdatedTasks)
-                {
-                    Tasks.Remove(task);
-                }
-
-                // Save the cleaned list
-                _taskRepo.Save(Tasks);
-            }
-            else
-            {
-                Console.WriteLine("[Cleanup] No outdated tasks found.");
-            }
+            int newId = Technicians.Any() ? Technicians.Max(t => t.Id) + 1 : 1;
+            tech.Id = newId;
+            Technicians.Add(tech);
+            _techRepo.Save(Technicians);
+            return tech;
         }
-
-public void AddTask(TaskEntity task)
+        public bool DeleteTechnician(int id)
+        {
+            var tech = Technicians.FirstOrDefault(t => t.Id == id);
+            if (tech == null) return false;
+            Technicians.Remove(tech);
+            _techRepo.Save(Technicians);
+            return true;
+        }
+        // task methods
+        public List<TaskEntity> GetAllTasks() => Tasks;
+        public void AddTask(TaskEntity task)
         {
             int newId = Tasks.Any() ? Tasks.Max(t => t.Id) + 1 : 1;
             task.Id = newId;
             Tasks.Add(task);
             _taskRepo.Save(Tasks);
-        }
-
-        // FIX: Explicitly use System.Threading.Tasks.Task
-    public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
-        {
-            Console.WriteLine("Generating Initial Schedule...");
-            
-            // 1. Run Greedy
-            var initialResult = _greedy.GenerateInitialSchedule(Technicians, Tasks);
-            
-            if (initialResult.UnscheduledTasks.Any())
-            {
-                Console.WriteLine($"[Warning] {initialResult.UnscheduledTasks.Count} tasks could not be scheduled.");
-            }
-
-            Console.WriteLine("Optimizing Routes...");
-            
-            // 2. Run Simulated Annealing
-            var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
-            
-            _taskRepo.Save(Tasks);
-
-            return finalSolution;
         }
 
         public bool DeleteTask(int id)
@@ -108,6 +96,41 @@ public void AddTask(TaskEntity task)
             Tasks.Remove(task);
             _taskRepo.Save(Tasks);
             return true;
-    }
+        }
+
+        public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
+        {
+            Console.WriteLine($"[Optimizer] Technicians: {Technicians.Count}, Tasks: {Tasks.Count}");
+            
+            Console.WriteLine("Generating Initial Schedule...");
+            var initialResult = _greedy.GenerateInitialSchedule(Technicians, Tasks);
+            
+            Console.WriteLine("Optimizing Routes...");
+            // 1. Run the Optimizer (It only rearranges lists in memory)
+            var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
+            
+            // 2. COMMIT PHASE: Apply the results to the Real Data
+            foreach (var schedule in finalSolution)
+            {
+                int sequence = 1;
+                foreach (var optimizedTask in schedule.Tasks)
+                {
+                    // Find the real task in our main list
+                    var realTask = Tasks.FirstOrDefault(t => t.Id == optimizedTask.Id);
+                    if (realTask != null)
+                    {
+                        realTask.AssignedTechnicianId = schedule.TechnicianId;
+                        realTask.SequenceIndex = sequence++;
+                        realTask.Status = FSM.Domain.Enums.TaskStatus.Scheduled;
+                    }
+                }
+            }
+
+            // 3. Save to JSON so the Frontend sees it
+            _taskRepo.Save(Tasks);
+            Console.WriteLine("Optimization Saved to Database.");
+
+            return finalSolution;
+        }
     }
 }

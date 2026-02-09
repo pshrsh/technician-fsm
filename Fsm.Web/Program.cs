@@ -2,16 +2,15 @@ using FSM.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Add services to the container.
-// This tells the app to look for [ApiController] classes (like yours)
+builder.Services.AddSingleton<FsmService>();
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         // This allows "clientName" and "ClientName" to both work
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
-// 2. Add Swagger/OpenAPI support
-// This generates the documentation page you are trying to see
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using FSM.Domain.Enums; // Fix: Updated Namespace
+using FSM.Domain.Enums;
 
 namespace FSM.Domain.Entities
 {
@@ -23,6 +23,20 @@ namespace FSM.Domain.Entities
         public decimal HourlyCost { get; set; } 
 
         public virtual ICollection<TechnicianSchedule> Schedules { get; set; } = new List<TechnicianSchedule>();
+
+        // --- NEW CONSTRUCTOR (Fixes the defaults) ---
+        public Technician()
+        {
+            // Default: Works 08:00 to 18:00
+            ShiftStart = new TimeSpan(8, 0, 0);
+            ShiftEnd = new TimeSpan(18, 0, 0);
+            
+            // Default: Can do ALL types of tasks
+            Skills = SkillSet.All; 
+            
+            EstimatedTravelSpeedKmH = 60;
+        }
+        // --------------------------------------------
 
         public bool HasSkill(SkillSet requiredSkill)
         {

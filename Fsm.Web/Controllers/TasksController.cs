@@ -11,10 +11,11 @@ namespace Fsm.Web.Controllers
     {
         private readonly FsmService _service;
 
-        public TasksController()
+        // FIX: We ask for the SHARED service here.
+        // The "Singleton" we added in Program.cs is injected automatically.
+        public TasksController(FsmService service)
         {
-            // This reuses the EXACT same logic you built for the console!
-            _service = new FsmService();
+            _service = service;
         }
 
         [HttpGet]
@@ -26,32 +27,23 @@ namespace Fsm.Web.Controllers
         [HttpPost]
         public IActionResult AddTask([FromBody] TaskEntity task)
         {
-            // --- DEBUG LOGS START ---
-            System.Console.WriteLine($"[API] Received AddTask Request...");
-            
-            if (task == null)
-            {
-                System.Console.WriteLine("[API] Error: Task object is NULL.");
-                return BadRequest("Task is null");
-            }
+            if (task == null) return BadRequest("Task is null");
 
-            System.Console.WriteLine($"[API] Name: {task.ClientName}, Lat: {task.Latitude}, Lon: {task.Longitude}");
-            // --- DEBUG LOGS END ---
-
-            // Defaults
+            // Defaults: 1 Hour duration, window 09:00 - 17:00
             if (task.Duration == default) task.Duration = System.TimeSpan.FromHours(1);
             if (task.TimeWindowStart == default) task.TimeWindowStart = System.DateTime.Today.AddHours(9);
             if (task.TimeWindowEnd == default) task.TimeWindowEnd = System.DateTime.Today.AddHours(17);
 
             _service.AddTask(task);
-            
-            System.Console.WriteLine("[API] Task sent to service for saving.");
             return Ok(task);
         }
 
         [HttpPost("schedule")]
         public async Task<IActionResult> RunSchedule()
         {
+            // DEBUG: Print count to console to prove it sees the data
+            System.Console.WriteLine($"[Optimizer] Technicians: {_service.Technicians.Count}, Tasks: {_service.Tasks.Count}");
+            
             var result = await _service.RunOptimizationAsync();
             return Ok(result);
         }
@@ -59,7 +51,6 @@ namespace Fsm.Web.Controllers
         [HttpDelete("{id}")]
         public IActionResult DeleteTask(int id)
         {
-            // Call the service to delete
             var success = _service.DeleteTask(id); 
             if (!success) return NotFound();
             return Ok();

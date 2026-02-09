@@ -8,84 +8,110 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Sidebar */
-        #sidebar { width: 320px; background: #f8f9fa; padding: 20px; overflow-y: auto; border-right: 2px solid #dee2e6; display: flex; flex-direction: column; gap: 15px; }
-        h2 { margin-top: 0; color: #343a40; }
+        /* --- SIDEBAR LAYOUT (Fixed Split) --- */
+        #sidebar { 
+            width: 350px; 
+            background: #f8f9fa; 
+            border-right: 2px solid #dee2e6; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh;
+        }
+
+        /* Top Section: Headers & Forms (Non-Scrollable) */
+        .sidebar-header { padding: 15px 15px 5px 15px; background: #f8f9fa; z-index: 10; }
         
-        /* Map Area */
+        /* Technician List: Fixed Max Height, Scrollable */
+        #tech-container {
+            padding: 0 15px 10px 15px;
+            max-height: 30vh; /* Takes top 30% of screen */
+            overflow-y: auto;
+            flex-shrink: 0;   /* CRITICAL: Prevents squashing when tasks are added */
+            border-bottom: 2px solid #e9ecef;
+            background: #f1f3f5;
+        }
+
+        /* Task List: Fills Remaining Space, Scrollable */
+        #task-container {
+            padding: 10px 15px;
+            flex-grow: 1;     /* Takes all remaining space */
+            overflow-y: auto; /* Scrolls independently */
+        }
+
+        h2 { margin: 0 0 10px 0; color: #343a40; font-size: 1.4rem; }
+        h3 { margin: 10px 0 5px 0; color: #495057; font-size: 1.1rem; border-bottom: 2px solid #dee2e6; padding-bottom: 5px;}
+
+        /* --- MAP AREA --- */
         #map { flex-grow: 1; height: 100%; position: relative; }
 
-        /* Floating Stats Panel (New Feature) */
+        /* Floating Stats Panel */
         #stats-panel {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            min-width: 200px;
+            position: absolute; top: 20px; right: 20px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); min-width: 200px;
         }
         .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
         .stat-val { font-weight: bold; color: #007bff; }
         
-       /* Task Cards - Compact & Stacked */
+        /* Cards */
         .card { 
-            background: white; 
-            padding: 10px;      /* Smaller padding */
-            border-radius: 6px; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
-            border: 1px solid #e9ecef; 
-            
-            /* Flexbox for vertical layout */
-            display: flex;
-            flex-direction: column; 
-            gap: 8px;           /* Small gap between text and button */
+            background: white; padding: 10px; border-radius: 6px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid #ced4da; 
+            display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;
         }
-        
-        /* Delete Button - Compact at bottom */
-        .btn-delete {
-            background: #dc3545; 
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 5px 0;     /* Slimmer vertical padding */
-            cursor: pointer;
-            font-size: 0.8rem;  /* Smaller text */
-            width: 100%; 
-            transition: background 0.2s;
-        }
-        .btn-delete:hover { background: #c82333; }
+        .status-scheduled { border-left: 5px solid #28a745; }
+        .status-pending { border-left: 5px solid #ffc107; }
+        .tech-card { border-left: 5px solid #007bff; background: #ffffff; }
 
         /* Inputs & Buttons */
-        input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s; }
-        .btn-add { background: #28a745; }
-        .btn-add:hover { background: #218838; }
-        .btn-run { background: #007bff; }
-        .btn-run:hover { background: #0069d9; }
+        input { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 8px; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        .btn-add { background: #28a745; } .btn-add:hover { background: #218838; }
+        .btn-run { background: #6610f2; margin-bottom: 10px; } .btn-run:hover { background: #520dc2; }
+        .btn-delete { background: #dc3545; padding: 5px 0; font-size: 0.8rem; } .btn-delete:hover { background: #c82333; }
+        
+        /* Leaflet Icons */
+        .tech-icon { font-size: 20px; text-align: center; line-height: 1; text-shadow: 0 0 3px white; }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h2>📡 Dispatch Center</h2>
-
-        <div class="card" style="background: #e9ecef;">
-            <h3>➕ New Mission</h3>
-            <input type="text" id="tName" placeholder="Client Name">
-            <input type="text" id="tLat" placeholder="Lat (e.g. 32.08)">
-            <input type="text" id="tLon" placeholder="Lon (e.g. 34.78)">
-            <button class="btn-add" onclick="addNewTask()">Add Task</button>
+        <div class="sidebar-header">
+            <h2>📡 Dispatch Center</h2>
+            <h3>👷 Technicians</h3>
+            <div class="card" style="background: #e9ecef;">
+                <input type="text" id="techName" placeholder="Name (e.g. David)">
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="techLat" placeholder="Base Lat">
+                    <input type="text" id="techLon" placeholder="Base Lon">
+                </div>
+                <button class="btn-add" onclick="addTechnician()" style="background: #007bff;">Add Technician</button>
+            </div>
         </div>
 
-        <button class="btn-run" onclick="runScheduler()">🚀 Run Optimizer</button>
-        
-        <h3>📋 Active Tasks</h3>
-        <div id="task-list">Loading...</div>
+        <div id="tech-container">
+            <div id="tech-list"></div>
+        </div>
+
+        <div class="sidebar-header" style="border-top: 1px solid #dee2e6; margin-top:0;">
+            <h3>📦 Missions</h3>
+            <div class="card" style="background: #e9ecef;">
+                <input type="text" id="tName" placeholder="Client Name">
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="tLat" placeholder="Lat">
+                    <input type="text" id="tLon" placeholder="Lon">
+                </div>
+                <button class="btn-add" onclick="addNewTask()">Add Task</button>
+            </div>
+            <button class="btn-run" onclick="runScheduler()">🚀 Run Optimizer</button>
+        </div>
+
+        <div id="task-container">
+            <div id="task-list">Loading...</div>
+        </div>
     </div>
 
     <div id="map">
@@ -98,71 +124,137 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Initialize Map centered on Tel Aviv
         var map = L.map('map').setView([32.0853, 34.7818], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
         
         var markers = [];
-        var polylines = []; // Store lines to clear them later
+        var techMarkers = [];
+        var polylines = [];
 
-        // Unique colors for technicians
         function getTechColor(id) {
             const colors = ['#007bff', '#dc3545', '#28a745', '#6f42c1', '#fd7e14', '#17a2b8'];
-            return colors[(id || 0) % colors.length];
+            return colors[(id - 1) % colors.length] || '#007bff';
         }
+
+        // --- TECHNICIAN LOGIC ---
+
+        async function loadTechnicians() {
+            try {
+                const res = await fetch('/api/technicians');
+                const techs = await res.json();
+                const list = document.getElementById('tech-list');
+                list.innerHTML = "";
+                
+                techMarkers.forEach(m => map.removeLayer(m));
+                techMarkers = [];
+
+                if(techs.length === 0) list.innerHTML = "<small>No technicians.</small>";
+
+                techs.forEach(t => {
+                    // Card with DELETE button
+                    const div = document.createElement('div');
+                    div.className = "card tech-card";
+                    div.style.borderLeftColor = getTechColor(t.id);
+                    
+                    div.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                            <div>
+                                <strong>${t.name}</strong><br>
+                                <small>🏠 Base: ${t.baseLatitude}, ${t.baseLongitude}</small>
+                            </div>
+                            <button style="width:auto; padding:2px 6px; font-size:16px; background:transparent; color:#dc3545; border:1px solid #dc3545;" 
+                                    onclick="deleteTechnician(${t.id})" title="Fire Technician">✕</button>
+                        </div>
+                        <button style="width:100%; margin-top:5px; padding:4px; font-size:12px; background:#6c757d;" 
+                                onclick="showSchedule(${t.id}, '${t.name}')">📅 Schedule</button>
+                    `;
+                    list.appendChild(div);
+
+                    if (t.baseLatitude && t.baseLongitude) {
+                        const iconHtml = `<div class="tech-icon">🏠</div>`;
+                        const customIcon = L.divIcon({ html: iconHtml, className: 'dummy', iconSize: [20, 20], iconAnchor: [10, 10] });
+                        const marker = L.marker([t.baseLatitude, t.baseLongitude], { icon: customIcon })
+                            .addTo(map).bindPopup(`<b style="color:${getTechColor(t.id)}">${t.name}</b>`);
+                        techMarkers.push(marker);
+                    }
+                });
+            } catch (err) { console.error("Error loading techs:", err); }
+        }
+
+        async function addTechnician() {
+            const name = document.getElementById('techName').value;
+            const lat = parseFloat(document.getElementById('techLat').value);
+            const lon = parseFloat(document.getElementById('techLon').value);
+            if(!name || !lat || !lon) { alert("Missing fields"); return; }
+
+            await fetch('/api/technicians', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ Name: name, BaseAddress: "HQ", BaseLatitude: lat, BaseLongitude: lon, EstimatedTravelSpeedKmH: 60 })
+            });
+            document.getElementById('techName').value = "";
+            loadTechnicians(); 
+        }
+
+        async function deleteTechnician(id) {
+            if(!confirm("Fire this technician?")) return;
+            const res = await fetch(`/api/technicians/${id}`, { method: 'DELETE' });
+            if(res.ok) loadTechnicians();
+            else alert("Failed to delete.");
+        }
+
+        async function showSchedule(techId, techName) {
+            const res = await fetch('/api/tasks');
+            const tasks = await res.json();
+            const myTasks = tasks.filter(t => t.assignedTechnicianId === techId).sort((a,b) => a.sequenceIndex - b.sequenceIndex);
+            
+            if (myTasks.length === 0) { alert(`${techName} has no tasks.`); return; }
+
+            let msg = `📅 Schedule for ${techName}:\n--------------------------\n08:00 🏠 Start\n`;
+            myTasks.forEach(t => {
+                const start = t.actualStartTime ? new Date(t.actualStartTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "--:--";
+                msg += `${start} 🛠️ ${t.clientName}\n`;
+            });
+            alert(msg + "--------------------------\n🏁 End");
+        }
+
+        // --- TASK LOGIC ---
 
         async function loadTasks() {
             try {
                 const res = await fetch('/api/tasks');
                 const tasks = await res.json();
-                
                 const list = document.getElementById('task-list');
                 list.innerHTML = "";
                 
-                // Clear old map elements
                 markers.forEach(m => map.removeLayer(m));
                 polylines.forEach(p => map.removeLayer(p));
                 markers = [];
                 polylines = [];
 
-                // Stats Variables
                 let totalDist = 0;
                 let activeTechs = new Set();
-                const techRoutes = {}; // Helper for drawing lines
+                const techRoutes = {}; 
 
                 tasks.forEach(task => {
-                    // 1. Add to Sidebar List
                     const div = document.createElement('div');
-                    div.className = `card task-card status-${task.status === 1 ? 'scheduled' : 'pending'}`;
-                    
+                    div.className = `card status-${task.status === 1 ? 'scheduled' : 'pending'}`;
                     div.innerHTML = `
                         <div style="line-height: 1.4;">
                             <strong>${task.clientName}</strong><br>
-                            <span style="font-size: 0.85rem; color: #555;">
-                                Tech: ${task.assignedTechnicianId || '-'} | Seq: ${task.sequenceIndex}
-                            </span>
+                            <span style="font-size: 0.85rem; color: #555;">Tech: ${task.assignedTechnicianId || '-'} | Seq: ${task.sequenceIndex}</span>
                         </div>
                         <button class="btn-delete" onclick="deleteTask(${task.id})">Cancel</button>
                     `;
                     list.appendChild(div);
 
-                    // 2. Map Marker Logic
                     if (task.latitude && task.longitude) {
                         const color = task.status === 1 ? getTechColor(task.assignedTechnicianId) : 'orange';
-                        
-                        // Use CircleMarker for a cleaner "Route Node" look
                         const marker = L.circleMarker([task.latitude, task.longitude], {
-                            radius: 8,
-                            fillColor: color,
-                            color: '#fff',
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.9
-                        }).addTo(map).bindPopup(`<b>${task.clientName}</b><br>Tech ID: ${task.assignedTechnicianId}`);
-                        
+                            radius: 8, fillColor: color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.9
+                        }).addTo(map).bindPopup(`<b>${task.clientName}</b>`);
                         markers.push(marker);
 
-                        // 3. Group tasks for drawing lines
                         if (task.status === 1 && task.assignedTechnicianId) {
                             activeTechs.add(task.assignedTechnicianId);
                             if (!techRoutes[task.assignedTechnicianId]) techRoutes[task.assignedTechnicianId] = [];
@@ -171,30 +263,22 @@
                     }
                 });
 
-                // 4. Draw Lines & Calc Distance
                 Object.keys(techRoutes).forEach(techId => {
                     const route = techRoutes[techId];
-                    // Sort by sequence (1 -> 2 -> 3)
                     route.sort((a, b) => a.sequenceIndex - b.sequenceIndex);
-                    
-                    const latlngs = route.map(t => L.latLng(t.latitude, t.longitude));
+                    const offset = (parseInt(techId) * 0.0003); 
+                    const latlngs = route.map(t => [t.latitude + offset, t.longitude + offset]);
 
-                    // Calculate distance for this tech
-                    for(let i=0; i<latlngs.length-1; i++) {
-                        totalDist += latlngs[i].distanceTo(latlngs[i+1]) / 1000; // Meters to KM
+                    for(let i=0; i<route.length-1; i++) {
+                        const p1 = L.latLng(route[i].latitude, route[i].longitude);
+                        const p2 = L.latLng(route[i+1].latitude, route[i+1].longitude);
+                        totalDist += p1.distanceTo(p2) / 1000;
                     }
 
-                    // Draw the polyline
-                    const polyline = L.polyline(latlngs, {
-                        color: getTechColor(techId),
-                        weight: 4,
-                        opacity: 0.7,
-                        dashArray: '5, 10'
-                    }).addTo(map);
-                    polylines.push(polyline);
+                    const poly = L.polyline(latlngs, { color: getTechColor(techId), weight: 4, opacity: 0.7, dashArray: '5, 10' }).addTo(map);
+                    polylines.push(poly);
                 });
 
-                // 5. Update Stats Panel
                 document.getElementById('stat-count').innerText = tasks.length;
                 document.getElementById('stat-dist').innerText = totalDist.toFixed(1) + " km";
                 document.getElementById('stat-techs').innerText = activeTechs.size;
@@ -206,53 +290,32 @@
             const name = document.getElementById('tName').value;
             const lat = parseFloat(document.getElementById('tLat').value);
             const lon = parseFloat(document.getElementById('tLon').value);
-
-            if(!name || !lat || !lon) { alert("Please fill all fields"); return; }
-
-            const task = {
-                Id: 0, 
-                ClientName: name,      
-                Latitude: lat,         
-                Longitude: lon,        
-                Duration: "01:00:00",  
-                RequiredSkills: 1,     
-                Priority: 1            
-            };
+            if(!name || !lat || !lon) { alert("Missing fields"); return; }
 
             await fetch('/api/tasks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(task)
+                body: JSON.stringify({ Id: 0, ClientName: name, Latitude: lat, Longitude: lon, Duration: "01:00:00", RequiredSkills: 1, Priority: 1 })
             });
-
             document.getElementById('tName').value = "";
             loadTasks();
         }
 
-        // New Feature: Delete/Cancel Task
         async function deleteTask(id) {
-            if(!confirm("Are you sure you want to cancel this task?")) return;
-
-            // Important: We try to DELETE from the API
-            const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
-            
-            if(res.ok) {
-                loadTasks(); // Reload map
-            } else {
-                alert("Error cancelling task. Check if your backend supports DELETE.");
-            }
+            if(!confirm("Cancel task?")) return;
+            await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+            loadTasks();
         }
 
         async function runScheduler() {
             const btn = document.querySelector('.btn-run');
             btn.innerText = "Thinking...";
             await fetch('/api/tasks/schedule', { method: 'POST' });
-            alert("Optimization Complete! Routes updated.");
             loadTasks(); 
             btn.innerText = "🚀 Run Optimizer";
         }
 
-        // Initial Load
+        loadTechnicians();
         loadTasks();
     </script>
 </body>
