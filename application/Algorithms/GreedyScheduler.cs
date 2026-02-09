@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FSM.Application.Interfaces;
-using FSM.Application.DTOs; // Add this
+using FSM.Application.DTOs;
 using FSM.Domain.Entities;
 using FSM.Domain.Enums;
 using TaskEntity = FSM.Domain.Entities.Task;
@@ -16,10 +16,10 @@ namespace FSM.Application.Algorithms
             var schedules = InitializeSchedules(technicians);
             var unassigned = new List<TaskEntity>();
 
-            // Sort: Urgent first, then by earliest deadline
+            // Sort: Urgent first, then by earliest Window End (if exists)
             var sortedTasks = tasks
                 .OrderByDescending(t => t.Priority)
-                .ThenBy(t => t.TimeWindowEnd)
+                .ThenBy(t => t.WindowEnd ?? TimeSpan.MaxValue) 
                 .ToList();
 
             foreach (var task in sortedTasks)
@@ -46,14 +46,25 @@ namespace FSM.Application.Algorithms
                     double travelMinutes = (distKm / tech.EstimatedTravelSpeedKmH) * 60;
 
                     DateTime arrivalTime = availableTime.AddMinutes(travelMinutes);
-                    DateTime startTask = arrivalTime < task.TimeWindowStart ? task.TimeWindowStart : arrivalTime;
+
+                    DateTime windowStart = task.WindowStart.HasValue 
+                        ? schedule.Date.Add(task.WindowStart.Value) 
+                        : DateTime.MinValue;
+
+                    DateTime windowEnd = task.WindowEnd.HasValue 
+                        ? schedule.Date.Add(task.WindowEnd.Value) 
+                        : DateTime.MaxValue;
+
+                    // If we arrive early, we wait until the window starts
+                    DateTime startTask = arrivalTime < windowStart ? windowStart : arrivalTime;
                     DateTime finishTime = startTask.Add(task.Duration);
 
                     DateTime shiftEnd = schedule.Date.Add(tech.ShiftEnd);
 
                     // Constraints
                     if (finishTime > shiftEnd) continue; // Shift Over
-                    if (startTask > task.TimeWindowEnd) continue; // Window Missed
+                    if (startTask > windowEnd) continue; // Window Missed (Too Late)
+                    // -----------------------------
 
                     if (distKm < bestScore)
                     {
@@ -80,7 +91,6 @@ namespace FSM.Application.Algorithms
                 }
             }
 
-            // FIX: Return the composite result
             return new SchedulerResult 
             { 
                 Schedules = schedules, 

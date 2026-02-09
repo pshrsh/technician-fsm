@@ -7,7 +7,6 @@ using FSM.Application.Algorithms;
 using FSM.Domain.Entities;
 using FSM.Infrastructure.Persistence;
 
-// Alias to distinguish between System.Threading.Tasks.Task and your Entity Task
 using TaskEntity = FSM.Domain.Entities.Task; 
 
 namespace FSM.Application.Services
@@ -41,42 +40,27 @@ namespace FSM.Application.Services
             Technicians = _techRepo.Load();
             Tasks = _taskRepo.Load();
 
-            // --- SELF-HEALING LOGIC ---
-            // Check if data is empty OR if technicians are "Broken" (No Skills / No Shift)
             bool isBroken = Technicians.Any(t => t.Skills == FSM.Domain.Enums.SkillSet.None || t.ShiftEnd == TimeSpan.Zero);
-
             if (!Technicians.Any() || isBroken)
             {
-                Console.WriteLine("⚠️ Invalid or Empty Data detected. Resetting Technicians...");
-                
                 Technicians.Clear();
-                
-                // Add Default Technicians (With Skills & Shifts thanks to the new Constructor)
                 AddTechnician(new Technician { Name = "David (Tel Aviv)", BaseLatitude = 32.0853, BaseLongitude = 34.7818 });
                 AddTechnician(new Technician { Name = "Sarah (Haifa)", BaseLatitude = 32.7940, BaseLongitude = 34.9896 });
-                AddTechnician(new Technician { Name = "Danny (Jerusalem)", BaseLatitude = 31.7683, BaseLongitude = 35.2137 });
-
                 _techRepo.Save(Technicians);
             }
         }
 
-        //  technician methods
         public List<Technician> GetAllTechnicians() => Technicians;
-
-public Technician AddTechnician(Technician tech)
+        
+        public Technician AddTechnician(Technician tech)
         {
-            // set default if no skill was sent
-            if (tech.Skills == FSM.Domain.Enums.SkillSet.None) 
-            {
-                tech.Skills = FSM.Domain.Enums.SkillSet.General;
-            }
-
-            int newId = Technicians.Any() ? Technicians.Max(t => t.Id) + 1 : 1;
-            tech.Id = newId;
+            if (tech.Skills == FSM.Domain.Enums.SkillSet.None) tech.Skills = FSM.Domain.Enums.SkillSet.General;
+            tech.Id = Technicians.Any() ? Technicians.Max(t => t.Id) + 1 : 1;
             Technicians.Add(tech);
             _techRepo.Save(Technicians);
             return tech;
         }
+
         public bool DeleteTechnician(int id)
         {
             var tech = Technicians.FirstOrDefault(t => t.Id == id);
@@ -85,12 +69,12 @@ public Technician AddTechnician(Technician tech)
             _techRepo.Save(Technicians);
             return true;
         }
-        // task methods
+
         public List<TaskEntity> GetAllTasks() => Tasks;
+
         public void AddTask(TaskEntity task)
         {
-            int newId = Tasks.Any() ? Tasks.Max(t => t.Id) + 1 : 1;
-            task.Id = newId;
+            task.Id = Tasks.Any() ? Tasks.Max(t => t.Id) + 1 : 1;
             Tasks.Add(task);
             _taskRepo.Save(Tasks);
         }
@@ -106,37 +90,70 @@ public Technician AddTechnician(Technician tech)
 
         public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
         {
-            Console.WriteLine($"[Optimizer] Technicians: {Technicians.Count}, Tasks: {Tasks.Count}");
-            
             Console.WriteLine("Generating Initial Schedule...");
             var initialResult = _greedy.GenerateInitialSchedule(Technicians, Tasks);
             
             Console.WriteLine("Optimizing Routes...");
-            // 1. Run the Optimizer (It only rearranges lists in memory)
             var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
             
-            // 2. COMMIT PHASE: Apply the results to the Real Data
+            // --- COMMIT PHASE ---
             foreach (var schedule in finalSolution)
             {
                 int sequence = 1;
+                var tech = schedule.Technician;
+                TimeSpan currentTime = tech.ShiftStart;
+                double currentLat = tech.BaseLatitude;
+                double currentLon = tech.BaseLongitude;
+
                 foreach (var optimizedTask in schedule.Tasks)
                 {
-                    // Find the real task in our main list
                     var realTask = Tasks.FirstOrDefault(t => t.Id == optimizedTask.Id);
                     if (realTask != null)
                     {
+                        // 1. Calculate Travel
+                        double dist = GetDist(currentLat, currentLon, realTask.Latitude, realTask.Longitude);
+                        double travelHours = dist / tech.EstimatedTravelSpeedKmH;
+                        currentTime = currentTime.Add(TimeSpan.FromHours(travelHours));
+
+                        // 2. Adjust for Start Window
+                        if (realTask.WindowStart.HasValue && currentTime < realTask.WindowStart.Value)
+                        {
+                            currentTime = realTask.WindowStart.Value;
+                        }
+
+                        // 3. Save Times
+                        DateTime today = DateTime.Today;
+                        realTask.ActualStartTime = today.Add(currentTime);
+                        
+                        currentTime = currentTime.Add(realTask.Duration);
+                        realTask.ActualEndTime = today.Add(currentTime);
+
+                        // 4. Update Properties
                         realTask.AssignedTechnicianId = schedule.TechnicianId;
                         realTask.SequenceIndex = sequence++;
                         realTask.Status = FSM.Domain.Enums.TaskStatus.Scheduled;
+
+                        currentLat = realTask.Latitude;
+                        currentLon = realTask.Longitude;
                     }
                 }
             }
 
-            // 3. Save to JSON so the Frontend sees it
             _taskRepo.Save(Tasks);
-            Console.WriteLine("Optimization Saved to Database.");
-
+            Console.WriteLine("Optimization Saved.");
             return finalSolution;
+        }
+
+        private double GetDist(double lat1, double lon1, double lat2, double lon2)
+        {
+             var R = 6371; 
+             var dLat = (lat2 - lat1) * (Math.PI / 180);
+             var dLon = (lon2 - lon1) * (Math.PI / 180);
+             var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                     Math.Cos(lat1 * (Math.PI / 180)) * Math.Cos(lat2 * (Math.PI / 180)) *
+                     Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+             var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+             return R * c;
         }
     }
 }

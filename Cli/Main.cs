@@ -5,7 +5,6 @@ using FSM.Application.Services;
 using FSM.Domain.Entities;
 using FSM.Domain.Enums;
 
-// Alias to use your Domain Task easily
 using TaskEntity = FSM.Domain.Entities.Task;
 
 namespace FSM.Cli
@@ -35,7 +34,6 @@ namespace FSM.Cli
             };
         }
 
-        // FIX: Explicitly use System.Threading.Tasks.Task to avoid ambiguity
         static async System.Threading.Tasks.Task Main(string[] args)
         {
             var service = new FsmService();
@@ -58,13 +56,14 @@ namespace FSM.Cli
                 {
                     case "1":
                         Console.WriteLine("\n--- Current Task List ---");
-                        if (service.Tasks.Count == 0)
-                        {
-                            Console.WriteLine("No tasks found in JSON file.");
-                        }
+                        if (service.Tasks.Count == 0) Console.WriteLine("No tasks found.");
+                        
                         foreach (var t in service.Tasks)
                         {
-                            Console.WriteLine($"[ID: {t.Id}] {t.ClientName} - {t.Priority} (Window: {t.TimeWindowStart.Hour}-{t.TimeWindowEnd.Hour})");
+                            // Display logic for nullable TimeSpan
+                            string start = t.WindowStart.HasValue ? t.WindowStart.Value.ToString(@"hh\:mm") : "Any";
+                            string end = t.WindowEnd.HasValue ? t.WindowEnd.Value.ToString(@"hh\:mm") : "Any";
+                            Console.WriteLine($"[ID: {t.Id}] {t.ClientName} - {t.Priority} (Window: {start}-{end})");
                         }
                         Console.WriteLine("\nPress any key...");
                         Console.ReadKey();
@@ -99,7 +98,6 @@ namespace FSM.Cli
         static void AddNewTaskUI(FsmService service)
         {
             Console.WriteLine("\n--- New Task ---");
-            // Uses the alias defined at the top
             var t = new TaskEntity();
             
             Console.Write("Client Name: ");
@@ -110,8 +108,11 @@ namespace FSM.Cli
             
             t.Priority = TaskPriority.Regular; 
             t.RequiredSkills = SkillSet.General; 
-            t.TimeWindowStart = DateTime.Today.AddHours(9); 
-            t.TimeWindowEnd = DateTime.Today.AddHours(17);
+            
+            // FIX: Using TimeSpan for Windows
+            t.WindowStart = TimeSpan.FromHours(9); // 09:00
+            t.WindowEnd = TimeSpan.FromHours(17);  // 17:00
+            
             t.Latitude = 32.0853; 
             t.Longitude = 34.7818;
 

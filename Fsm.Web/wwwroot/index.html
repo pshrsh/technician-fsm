@@ -12,16 +12,7 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
         
         /* --- SIDEBAR --- */
-        #sidebar { 
-            width: 360px; 
-            background: #f8f9fa; 
-            border-right: 2px solid #dee2e6; 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-            overflow-y: auto; 
-        }
-
+        #sidebar { width: 360px; background: #f8f9fa; border-right: 2px solid #dee2e6; display: flex; flex-direction: column; height: 100vh; overflow-y: auto; }
         .sidebar-header { padding: 15px 15px 5px 15px; background: #f8f9fa; }
         #tech-container, #task-container { padding: 0 15px 10px 15px; overflow: visible; }
         #task-container { padding-bottom: 40px; }
@@ -45,20 +36,13 @@
         .btn-run { background: #6610f2; margin-bottom: 10px; } .btn-run:hover { background: #520dc2; }
         .btn-delete { background: transparent; color: #dc3545; border: 1px solid #dc3545; padding: 2px 6px; font-size: 14px; width: auto; }
         .btn-delete:hover { background: #dc3545; color: white; }
+        
         .btn-geo { background: #17a2b8; width: auto; padding: 8px 12px; margin-left: 5px; margin-bottom: 5px; } 
         .btn-geo:hover { background: #138496; }
 
-        /* --- LEAFLET CUSTOM MARKERS --- */
+        /* --- ICONS --- */
         .tech-icon { font-size: 24px; text-align: center; line-height: 1; text-shadow: 0 0 3px white; }
-        
-        /* NEW: Numbered Icon Style */
-        .number-icon {
-            display: flex; justify-content: center; align-items: center;
-            border-radius: 50%;
-            color: white; font-weight: bold; font-family: sans-serif;
-            border: 2px solid white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-        }
+        .number-icon { display: flex; justify-content: center; align-items: center; border-radius: 50%; color: white; font-weight: bold; font-family: sans-serif; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4); }
     </style>
 </head>
 <body>
@@ -78,6 +62,7 @@
                     <option value="16">❄️ HVAC Tech</option>
                     <option value="31">🌟 Master (All Skills)</option>
                 </select>
+
                 <div style="display: flex; align-items: center;">
                     <input type="text" id="techAddress" placeholder="Address (e.g. Tel Aviv)">
                     <button class="btn-geo" onclick="geocode('techAddress', 'techLat', 'techLon')">🔍</button>
@@ -94,6 +79,7 @@
 
         <div class="sidebar-header" style="border-top: 1px solid #dee2e6; margin-top:0;">
             <h3>📦 Missions</h3>
+            
             <div class="card" style="background: #e9ecef;">
                 <input type="text" id="tName" placeholder="Client Name">
                 <select id="tSkill">
@@ -103,6 +89,14 @@
                     <option value="8">🌐 Network Down</option>
                     <option value="16">❄️ HVAC Repair</option>
                 </select>
+
+                <select id="tTimeWindow">
+                    <option value="any">⏰ Anytime (Default)</option>
+                    <option value="morning">🌅 Morning (08:00 - 12:00)</option>
+                    <option value="noon">☀️ Noon (12:00 - 15:00)</option>
+                    <option value="afternoon">🌇 Afternoon (15:00 - 18:00)</option>
+                </select>
+
                 <div style="display: flex; align-items: center;">
                     <input type="text" id="tAddress" placeholder="Address (e.g. Rothschild 10)">
                     <button class="btn-geo" onclick="geocode('tAddress', 'tLat', 'tLon')">🔍</button>
@@ -113,6 +107,7 @@
                 </div>
                 <button class="btn-add" onclick="addNewTask()">Create Task</button>
             </div>
+            
             <button class="btn-run" onclick="runScheduler()">🚀 Run Optimizer</button>
         </div>
 
@@ -131,7 +126,6 @@
         var map = L.map('map').setView([32.0853, 34.7818], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
         
-        // Layers: Route (Bottom) -> Task (Middle) -> Tech (Top)
         var routeLayer = L.layerGroup().addTo(map);
         var taskLayer = L.layerGroup().addTo(map);
         var techLayer = L.layerGroup().addTo(map);
@@ -150,7 +144,6 @@
             return "🔨";
         }
 
-        // --- GEOCODING ---
         async function geocode(inputId, latId, lonId) {
             const address = document.getElementById(inputId).value;
             if (!address) { alert("Please enter an address first."); return; }
@@ -177,7 +170,6 @@
             finally { btn.innerText = originalText; }
         }
 
-        // --- TECHNICIAN LOGIC ---
         async function loadTechnicians() {
             try {
                 const res = await fetch('/api/technicians');
@@ -196,16 +188,21 @@
                     
                     div.innerHTML = `
                         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                            <div><strong>${icon} ${t.name}</strong><br><small>🏠 Base: ${t.baseLatitude}, ${t.baseLongitude}</small></div>
+                            <div>
+                                <strong>${icon} ${t.name}</strong><br>
+                                <small>🏠 Base: ${t.baseLatitude}, ${t.baseLongitude}</small>
+                            </div>
                             <button class="btn-delete" onclick="deleteTechnician(${t.id})">✕</button>
                         </div>
-                        <button style="width:100%; margin-top:5px; padding:4px; font-size:12px; background:#6c757d;" onclick="showSchedule(${t.id}, '${t.name}')">📅 Schedule</button>
+                        <button style="width:100%; margin-top:5px; padding:4px; font-size:12px; background:#6c757d;" 
+                                onclick="showSchedule(${t.id}, '${t.name}')">📅 Schedule</button>
                     `;
                     list.appendChild(div);
 
                     if (t.baseLatitude && t.baseLongitude) {
-                        const mapIcon = L.divIcon({ html: `<div class="tech-icon">${icon}</div>`, className: 'dummy', iconSize: [30, 30] });
-                        L.marker([t.baseLatitude, t.baseLongitude], { icon: mapIcon }).bindPopup(`<b>${t.name}</b>`).addTo(techLayer); 
+                        const mapIcon = L.divIcon({ html: `<div class="tech-icon">${icon}</div>`, className: 'dummy', iconSize: [24, 24] });
+                        L.marker([t.baseLatitude, t.baseLongitude], { icon: mapIcon })
+                            .bindPopup(`<b>${t.name}</b>`).addTo(techLayer); 
                     }
                 });
             } catch (err) { console.error("Error loading techs:", err); }
@@ -216,6 +213,7 @@
             const skill = parseInt(document.getElementById('techSkill').value);
             const lat = parseFloat(document.getElementById('techLat').value);
             const lon = parseFloat(document.getElementById('techLon').value);
+
             if(!name || !lat || !lon) { alert("Please search for an address first!"); return; }
 
             await fetch('/api/technicians', {
@@ -223,7 +221,11 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ Name: name, Skills: skill, BaseAddress: "HQ", BaseLatitude: lat, BaseLongitude: lon })
             });
-            document.getElementById('techName').value = ""; document.getElementById('techAddress').value = "";
+            
+            document.getElementById('techName').value = "";
+            document.getElementById('techAddress').value = "";
+            document.getElementById('techLat').value = "";
+            document.getElementById('techLon').value = "";
             loadTechnicians(); 
         }
 
@@ -237,6 +239,7 @@
             const res = await fetch('/api/tasks');
             const tasks = await res.json();
             const myTasks = tasks.filter(t => t.assignedTechnicianId === techId).sort((a,b) => a.sequenceIndex - b.sequenceIndex);
+            
             let msg = `📅 Schedule for ${techName}:\n--------------------------\n08:00 🏠 Start\n`;
             myTasks.forEach(t => {
                 const start = t.actualStartTime ? new Date(t.actualStartTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "--:--";
@@ -245,7 +248,6 @@
             alert(msg + "--------------------------\n🏁 End");
         }
 
-        // --- TASK LOGIC ---
         async function loadTasks() {
             try {
                 const res = await fetch('/api/tasks');
@@ -260,12 +262,21 @@
 
                 tasks.forEach(task => {
                     const icon = getSkillIcon(task.requiredSkills);
+                    
+                    // Format Window Display
+                    let timeInfo = "";
+                    if (task.windowStart) {
+                        const startStr = task.windowStart.substr(0, 5);
+                        const endStr = task.windowEnd ? task.windowEnd.substr(0, 5) : "?";
+                        timeInfo = `<br><small style="color:#d63384; font-weight:bold;">⏰ ${startStr} - ${endStr}</small>`;
+                    }
+
                     const div = document.createElement('div');
                     div.className = `card status-${task.status === 1 ? 'scheduled' : 'pending'}`;
                     
                     div.innerHTML = `
                         <div style="line-height: 1.4;">
-                            <strong>${icon} ${task.clientName}</strong><br>
+                            <strong>${icon} ${task.clientName}</strong>${timeInfo}<br>
                             <span style="font-size: 0.85rem; color: #555;">Tech: ${task.assignedTechnicianId || '-'} | Seq: ${task.sequenceIndex}</span>
                         </div>
                         <button class="btn-delete" style="margin-top:5px; width:100%;" onclick="deleteTask(${task.id})">Cancel Task</button>
@@ -274,15 +285,12 @@
 
                     if (task.latitude && task.longitude) {
                         const isScheduled = task.status === 1;
-                        const color = isScheduled ? getTechColor(task.assignedTechnicianId) : '#fd7e14'; // Orange for pending
+                        const color = isScheduled ? getTechColor(task.assignedTechnicianId) : '#fd7e14';
                         
-                        // NEW: NUMBERED MARKER LOGIC
                         let markerHtml = "";
                         if (isScheduled) {
-                            // Show Sequence Number
                             markerHtml = `<div class="number-icon" style="background-color: ${color}; width: 24px; height: 24px;">${task.sequenceIndex}</div>`;
                         } else {
-                            // Show Skill Icon for pending
                             markerHtml = `<div class="number-icon" style="background-color: ${color}; width: 24px; height: 24px; font-size: 14px;">${icon}</div>`;
                         }
 
@@ -310,7 +318,10 @@
                         const p2 = L.latLng(route[i+1].latitude, route[i+1].longitude);
                         totalDist += p1.distanceTo(p2) / 1000;
                     }
-                    L.polyline(latlngs, { color: getTechColor(techId), weight: 4, opacity: 0.7, dashArray: '5, 10' }).addTo(routeLayer);
+                    
+                    L.polyline(latlngs, { 
+                        color: getTechColor(techId), weight: 4, opacity: 0.7, dashArray: '5, 10' 
+                    }).addTo(routeLayer);
                 });
 
                 document.getElementById('stat-count').innerText = tasks.length;
@@ -324,14 +335,40 @@
             const skill = parseInt(document.getElementById('tSkill').value);
             const lat = parseFloat(document.getElementById('tLat').value);
             const lon = parseFloat(document.getElementById('tLon').value);
+            
+            // --- TIME WINDOW LOGIC ---
+            const windowVal = document.getElementById('tTimeWindow').value;
+            let start = null;
+            let end = null;
+
+            if (windowVal === 'morning') { start = "08:00:00"; end = "12:00:00"; }
+            else if (windowVal === 'noon') { start = "12:00:00"; end = "15:00:00"; }
+            else if (windowVal === 'afternoon') { start = "15:00:00"; end = "18:00:00"; }
+            // 'any' leaves them null
+            // -------------------------
+
             if(!name || !lat || !lon) { alert("Please search for an address first!"); return; }
 
             await fetch('/api/tasks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ Id: 0, ClientName: name, RequiredSkills: skill, Latitude: lat, Longitude: lon, Duration: "01:00:00", Priority: 1 })
+                body: JSON.stringify({ 
+                    Id: 0, 
+                    ClientName: name, 
+                    RequiredSkills: skill, 
+                    Latitude: lat, 
+                    Longitude: lon, 
+                    Duration: "01:00:00", 
+                    Priority: 1,
+                    WindowStart: start,
+                    WindowEnd: end
+                })
             });
-            document.getElementById('tName').value = ""; document.getElementById('tAddress').value = "";
+            
+            document.getElementById('tName').value = "";
+            document.getElementById('tAddress').value = "";
+            document.getElementById('tLat').value = "";
+            document.getElementById('tLon').value = "";
             loadTasks();
         }
 

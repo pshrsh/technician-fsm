@@ -41,4 +41,4 @@ C:\Users\dabur\desktop\school\technician-fsm\Fsm.Web\obj\Debug\net10.0\Fsm.Web.p
 C:\Users\dabur\desktop\school\technician-fsm\Fsm.Web\obj\Debug\net10.0\Fsm.Web.genruntimeconfig.cache
 C:\Users\dabur\desktop\school\technician-fsm\Fsm.Web\obj\Debug\net10.0\ref\Fsm.Web.dll
 C:\Users\dabur\Desktop\school\technician-fsm\Fsm.Web\bin\Debug\net10.0\Fsm.Web.staticwebassets.runtime.json
-C:\Users\dabur\Desktop\school\technician-fsm\Fsm.Web\obj\Debug\net10.0\compressed\gdobuir5k1-{0}-n5yunmddjt-n5yunmddjt.gz
+C:\Users\dabur\Desktop\school\technician-fsm\Fsm.Web\obj\Debug\net10.0\compressed\gdobuir5k1-{0}-ir2vk8o3f6-ir2vk8o3f6.gz
