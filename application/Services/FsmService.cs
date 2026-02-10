@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FSM.Application.Algorithms;
+using FSM.Application.Utilities;
 using FSM.Domain.Entities;
 using FSM.Infrastructure.Persistence;
 
@@ -96,7 +97,7 @@ namespace FSM.Application.Services
             Console.WriteLine("Optimizing Routes...");
             var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
             
-            // --- COMMIT PHASE ---
+            // --- COMMIT PHASE WITH BREAK TIME ---
             foreach (var schedule in finalSolution)
             {
                 int sequence = 1;
@@ -110,10 +111,15 @@ namespace FSM.Application.Services
                     var realTask = Tasks.FirstOrDefault(t => t.Id == optimizedTask.Id);
                     if (realTask != null)
                     {
+                        // 0. Adjust for break before starting
+                        currentTime = BreakTimeHelper.AdjustForBreak(currentTime);
+
                         // 1. Calculate Travel
                         double dist = GetDist(currentLat, currentLon, realTask.Latitude, realTask.Longitude);
                         double travelHours = dist / tech.EstimatedTravelSpeedKmH;
-                        currentTime = currentTime.Add(TimeSpan.FromHours(travelHours));
+                        
+                        // Add travel time with break consideration
+                        currentTime = BreakTimeHelper.AddTimeWithBreak(currentTime, TimeSpan.FromHours(travelHours));
 
                         // 2. Adjust for Start Window
                         if (realTask.WindowStart.HasValue && currentTime < realTask.WindowStart.Value)
@@ -121,14 +127,15 @@ namespace FSM.Application.Services
                             currentTime = realTask.WindowStart.Value;
                         }
 
-                        // 3. Save Times
+                        // 3. Save Start Time
                         DateTime today = DateTime.Today;
                         realTask.ActualStartTime = today.Add(currentTime);
                         
-                        currentTime = currentTime.Add(realTask.Duration);
+                        // 4. Calculate End Time with Break Consideration
+                        currentTime = BreakTimeHelper.CalculateEndTimeWithBreak(currentTime, realTask.Duration);
                         realTask.ActualEndTime = today.Add(currentTime);
 
-                        // 4. Update Properties
+                        // 5. Update Properties
                         realTask.AssignedTechnicianId = schedule.TechnicianId;
                         realTask.SequenceIndex = sequence++;
                         realTask.Status = FSM.Domain.Enums.TaskStatus.Scheduled;
@@ -140,7 +147,7 @@ namespace FSM.Application.Services
             }
 
             _taskRepo.Save(Tasks);
-            Console.WriteLine("Optimization Saved.");
+            Console.WriteLine("Optimization Saved (with mandatory breaks 1-2 PM).");
             return finalSolution;
         }
 

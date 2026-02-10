@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FSM.Application.Interfaces;
 using FSM.Application.DTOs;
+using FSM.Application.Utilities;
 using FSM.Domain.Entities;
 using FSM.Domain.Enums;
 using TaskEntity = FSM.Domain.Entities.Task;
@@ -39,13 +40,23 @@ namespace FSM.Application.Algorithms
                     double startLat = lastTask?.Latitude ?? tech.BaseLatitude;
                     double startLon = lastTask?.Longitude ?? tech.BaseLongitude;
                     
-                    // 2. Time Check
+                    // 2. Time Check with Break
                     DateTime availableTime = lastTask?.ActualEndTime ?? schedule.Date.Add(tech.ShiftStart);
+                    TimeSpan availableTimeOfDay = availableTime.TimeOfDay;
+                    
+                    // Adjust for break if needed
+                    availableTimeOfDay = BreakTimeHelper.AdjustForBreak(availableTimeOfDay);
+                    availableTime = schedule.Date.Add(availableTimeOfDay);
                     
                     double distKm = CalculateDistance(startLat, startLon, task.Latitude, task.Longitude);
                     double travelMinutes = (distKm / tech.EstimatedTravelSpeedKmH) * 60;
 
                     DateTime arrivalTime = availableTime.AddMinutes(travelMinutes);
+                    TimeSpan arrivalTimeOfDay = arrivalTime.TimeOfDay;
+                    
+                    // Adjust arrival time for break
+                    arrivalTimeOfDay = BreakTimeHelper.AdjustForBreak(arrivalTimeOfDay);
+                    arrivalTime = schedule.Date.Add(arrivalTimeOfDay);
 
                     DateTime windowStart = task.WindowStart.HasValue 
                         ? schedule.Date.Add(task.WindowStart.Value) 
@@ -57,7 +68,11 @@ namespace FSM.Application.Algorithms
 
                     // If we arrive early, we wait until the window starts
                     DateTime startTask = arrivalTime < windowStart ? windowStart : arrivalTime;
-                    DateTime finishTime = startTask.Add(task.Duration);
+                    TimeSpan startTaskTimeOfDay = startTask.TimeOfDay;
+                    
+                    // Calculate finish time accounting for break
+                    TimeSpan finishTimeOfDay = BreakTimeHelper.CalculateEndTimeWithBreak(startTaskTimeOfDay, task.Duration);
+                    DateTime finishTime = schedule.Date.Add(finishTimeOfDay);
 
                     DateTime shiftEnd = schedule.Date.Add(tech.ShiftEnd);
 
@@ -78,7 +93,12 @@ namespace FSM.Application.Algorithms
                 {
                     task.AssignedTechnicianId = bestSchedule.TechnicianId;
                     task.ActualStartTime = bestStartTime;
-                    task.ActualEndTime = bestStartTime.Add(task.Duration);
+                    
+                    // Calculate end time with break consideration
+                    TimeSpan startTimeOfDay = bestStartTime.TimeOfDay;
+                    TimeSpan endTimeOfDay = BreakTimeHelper.CalculateEndTimeWithBreak(startTimeOfDay, task.Duration);
+                    task.ActualEndTime = bestSchedule.Date.Add(endTimeOfDay);
+                    
                     task.Status = FSM.Domain.Enums.TaskStatus.Scheduled;
 
                     bestSchedule.Tasks.Add(task);

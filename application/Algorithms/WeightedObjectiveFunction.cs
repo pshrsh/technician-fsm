@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FSM.Application.Interfaces;
+using FSM.Application.Utilities;
 using FSM.Domain.Entities;
 using FSM.Domain.Interfaces;
 
@@ -37,6 +38,9 @@ namespace FSM.Application.Algorithms
 
                 foreach (var task in schedule.Tasks)
                 {
+                    // Adjust for break before starting new task
+                    currentTime = BreakTimeHelper.AdjustForBreak(currentTime);
+
                     // travel
                     double dist = GeoUtils.CalculateDistance(currentLat, currentLon, task.Latitude, task.Longitude);
                     double travelHours = dist / tech.EstimatedTravelSpeedKmH;
@@ -44,7 +48,8 @@ namespace FSM.Application.Algorithms
                     totalCost += (dist * _w_Distance);
                     totalTravel += (travelHours * 60); // Store in minutes
 
-                    currentTime = currentTime.Add(TimeSpan.FromHours(travelHours));
+                    // Add travel time with break consideration
+                    currentTime = BreakTimeHelper.AddTimeWithBreak(currentTime, TimeSpan.FromHours(travelHours));
 
                     // time Windows
                     // if early then wait
@@ -63,8 +68,8 @@ namespace FSM.Application.Algorithms
                         totalDelay += (lateHours * 60); // Store in minutes
                     }
 
-                    // work
-                    currentTime = currentTime.Add(task.Duration);
+                    // work - add task duration with break consideration
+                    currentTime = BreakTimeHelper.CalculateEndTimeWithBreak(currentTime, task.Duration);
                     currentLat = task.Latitude;
                     currentLon = task.Longitude;
                 }
