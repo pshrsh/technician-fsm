@@ -7,7 +7,7 @@ using FSM.Application.Algorithms;
 using FSM.Application.Utilities;
 using FSM.Domain.Entities;
 using FSM.Infrastructure.Persistence;
-
+using Microsoft.VisualBasic;
 using TaskEntity = FSM.Domain.Entities.Task; 
 
 namespace FSM.Application.Services
@@ -89,13 +89,38 @@ namespace FSM.Application.Services
             return true;
         }
 
-        public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
+public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()
         {
             Console.WriteLine("Generating Initial Schedule...");
             var initialResult = _greedy.GenerateInitialSchedule(Technicians, Tasks);
             
-            Console.WriteLine("Optimizing Routes...");
-            var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
+            int numberofthreads = 3;
+            var saTask = new List<System.Threading.Tasks.Task<List<TechnicianSchedule>>>();
+            
+            for (int i = 0; i < numberofthreads; i++)
+            {
+                var clone = CloneSchedules(initialResult.Schedules);
+                
+                // pass the index to the thread to offset the start time
+                int threadIndex = i; 
+                
+                saTask.Add(System.Threading.Tasks.Task.Run(async () =>
+                {
+                    // force a slight delay so 'new random()' gets a unique clock seed
+                    await System.Threading.Tasks.Task.Delay(threadIndex * 50); 
+                    
+                    var localObj = new WeightedObjectiveFunction();
+                    var localOpt = new SimulatedAnnealingEngine(localObj);
+                    return await localOpt.OptimizeScheduleAsync(clone, CancellationToken.None);
+                }));
+            }
+            
+            var solutions = await System.Threading.Tasks.Task.WhenAll(saTask);
+            var finalSolution = solutions.OrderBy(sol => _objective.CalculateScore(sol)).First();
+
+            //no multithreading... :(
+            // Console.WriteLine("Optimizing Routes...");
+            // var finalSolution = await _optimizer.OptimizeScheduleAsync(initialResult.Schedules, CancellationToken.None);
             
             // --- COMMIT PHASE WITH BREAK TIME ---
             foreach (var schedule in finalSolution)
@@ -150,7 +175,43 @@ namespace FSM.Application.Services
             Console.WriteLine("Optimization Saved (with mandatory breaks 1-2 PM).");
             return finalSolution;
         }
-
+        // copies all properties to prevent the algorithm from breaking constraints
+        private List<TechnicianSchedule> CloneSchedules(List<TechnicianSchedule> original)
+        {
+            var clones = new List<TechnicianSchedule>();
+            foreach(var s in original)
+            {
+                clones.Add(new TechnicianSchedule
+                {
+                    Id = s.Id,
+                    TechnicianId = s.TechnicianId,
+                    Technician = s.Technician, // safe to pass reference of tech
+                    Date = s.Date,
+                    TotalDistance = s.TotalDistance,
+                    TotalDelay = s.TotalDelay,
+                    IsFeasible = s.IsFeasible,
+                    Tasks = s.Tasks.Select(t => new TaskEntity 
+                    {
+                        Id = t.Id,
+                        ClientName = t.ClientName,
+                        Latitude = t.Latitude,
+                        Longitude = t.Longitude,
+                        Address = t.Address,
+                        Priority = t.Priority,
+                        RequiredSkills = t.RequiredSkills, // critical for constraints
+                        Status = t.Status,
+                        Duration = t.Duration,
+                        WindowStart = t.WindowStart,
+                        WindowEnd = t.WindowEnd,           // critical for penalties
+                        SequenceIndex = t.SequenceIndex,
+                        ActualStartTime = t.ActualStartTime,
+                        ActualEndTime = t.ActualEndTime,
+                        AssignedTechnicianId = t.AssignedTechnicianId
+                    }).ToList()
+                });
+            }
+            return clones;
+        }
         private double GetDist(double lat1, double lon1, double lat2, double lon2)
         {
              var R = 6371; 

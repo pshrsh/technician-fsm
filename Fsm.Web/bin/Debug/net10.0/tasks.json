@@ -12,8 +12,8 @@
     "WindowStart": null,
     "WindowEnd": null,
     "SequenceIndex": 6,
-    "ActualStartTime": "2026-02-10T15:00:42.391918+02:00",
-    "ActualEndTime": "2026-02-10T16:00:42.391918+02:00",
+    "ActualStartTime": "2026-03-29T14:45:42.391918+03:00",
+    "ActualEndTime": "2026-03-29T15:45:42.391918+03:00",
     "AssignedTechnicianId": 2
   },
   {
@@ -28,9 +28,9 @@
     "Duration": "01:00:00",
     "WindowStart": null,
     "WindowEnd": null,
-    "SequenceIndex": 3,
-    "ActualStartTime": "2026-02-10T10:23:55.0111529+02:00",
-    "ActualEndTime": "2026-02-10T11:23:55.0111529+02:00",
+    "SequenceIndex": 7,
+    "ActualStartTime": "2026-03-29T15:58:04.6432941+03:00",
+    "ActualEndTime": "2026-03-29T16:58:04.6432941+03:00",
     "AssignedTechnicianId": 1
   },
   {
@@ -46,26 +46,9 @@
     "WindowStart": null,
     "WindowEnd": null,
     "SequenceIndex": 7,
-    "ActualStartTime": "2026-02-10T16:02:30.758928+02:00",
-    "ActualEndTime": "2026-02-10T17:02:30.758928+02:00",
+    "ActualStartTime": "2026-03-29T15:47:30.758928+03:00",
+    "ActualEndTime": "2026-03-29T16:47:30.758928+03:00",
     "AssignedTechnicianId": 2
-  },
-  {
-    "Id": 4,
-    "ClientName": "shaked",
-    "Latitude": 32.1561435,
-    "Longitude": 34.9742805,
-    "Address": null,
-    "Priority": 1,
-    "RequiredSkills": 4,
-    "Status": 1,
-    "Duration": "01:00:00",
-    "WindowStart": null,
-    "WindowEnd": null,
-    "SequenceIndex": 4,
-    "ActualStartTime": "2026-02-10T11:33:38.8268066+02:00",
-    "ActualEndTime": "2026-02-10T12:33:38.8268066+02:00",
-    "AssignedTechnicianId": 1
   },
   {
     "Id": 5,
@@ -79,9 +62,9 @@
     "Duration": "01:00:00",
     "WindowStart": null,
     "WindowEnd": null,
-    "SequenceIndex": 5,
-    "ActualStartTime": "2026-02-10T12:39:23.2247745+02:00",
-    "ActualEndTime": "2026-02-10T15:00:00+02:00",
+    "SequenceIndex": 6,
+    "ActualStartTime": "2026-03-29T14:53:10.4998219+03:00",
+    "ActualEndTime": "2026-03-29T15:53:10.4998219+03:00",
     "AssignedTechnicianId": 1
   },
   {
@@ -97,8 +80,8 @@
     "WindowStart": "08:00:00",
     "WindowEnd": "12:00:00",
     "SequenceIndex": 1,
-    "ActualStartTime": "2026-02-10T08:06:01.2120806+02:00",
-    "ActualEndTime": "2026-02-10T09:06:01.2120806+02:00",
+    "ActualStartTime": "2026-03-29T08:06:01.2120806+03:00",
+    "ActualEndTime": "2026-03-29T09:06:01.2120806+03:00",
     "AssignedTechnicianId": 1
   },
   {
@@ -113,9 +96,9 @@
     "Duration": "01:00:00",
     "WindowStart": "08:00:00",
     "WindowEnd": "12:00:00",
-    "SequenceIndex": 1,
-    "ActualStartTime": "2026-02-10T08:00:53.2293898+02:00",
-    "ActualEndTime": "2026-02-10T09:00:53.2293898+02:00",
+    "SequenceIndex": 3,
+    "ActualStartTime": "2026-03-29T10:01:24.6302362+03:00",
+    "ActualEndTime": "2026-03-29T11:01:24.6302362+03:00",
     "AssignedTechnicianId": 2
   },
   {
@@ -131,8 +114,8 @@
     "WindowStart": "08:00:00",
     "WindowEnd": "12:00:00",
     "SequenceIndex": 2,
-    "ActualStartTime": "2026-02-10T09:11:26.0557877+02:00",
-    "ActualEndTime": "2026-02-10T10:11:26.0557877+02:00",
+    "ActualStartTime": "2026-03-29T09:11:26.0557877+03:00",
+    "ActualEndTime": "2026-03-29T10:11:26.0557877+03:00",
     "AssignedTechnicianId": 1
   },
   {
@@ -147,9 +130,9 @@
     "Duration": "01:00:00",
     "WindowStart": "08:00:00",
     "WindowEnd": "12:00:00",
-    "SequenceIndex": 2,
-    "ActualStartTime": "2026-02-10T09:02:08.4286376+02:00",
-    "ActualEndTime": "2026-02-10T10:02:08.4286376+02:00",
+    "SequenceIndex": 4,
+    "ActualStartTime": "2026-03-29T11:02:39.829484+03:00",
+    "ActualEndTime": "2026-03-29T12:02:39.829484+03:00",
     "AssignedTechnicianId": 2
   },
   {
@@ -164,9 +147,9 @@
     "Duration": "01:00:00",
     "WindowStart": "08:00:00",
     "WindowEnd": "12:00:00",
-    "SequenceIndex": 3,
-    "ActualStartTime": "2026-02-10T10:03:38.3460661+02:00",
-    "ActualEndTime": "2026-02-10T11:03:38.3460661+02:00",
+    "SequenceIndex": 2,
+    "ActualStartTime": "2026-03-29T09:00:49.3778434+03:00",
+    "ActualEndTime": "2026-03-29T10:00:49.3778434+03:00",
     "AssignedTechnicianId": 2
   },
   {
@@ -181,9 +164,9 @@
     "Duration": "01:00:00",
     "WindowStart": "08:00:00",
     "WindowEnd": "12:00:00",
-    "SequenceIndex": 4,
-    "ActualStartTime": "2026-02-10T11:04:02.8864622+02:00",
-    "ActualEndTime": "2026-02-10T12:04:02.8864622+02:00",
+    "SequenceIndex": 1,
+    "ActualStartTime": "2026-03-29T08:00:24.8374473+03:00",
+    "ActualEndTime": "2026-03-29T09:00:24.8374473+03:00",
     "AssignedTechnicianId": 2
   },
   {
@@ -199,8 +182,8 @@
     "WindowStart": "12:00:00",
     "WindowEnd": "15:00:00",
     "SequenceIndex": 5,
-    "ActualStartTime": "2026-02-10T12:05:43.6709252+02:00",
-    "ActualEndTime": "2026-02-10T15:00:00+02:00",
+    "ActualStartTime": "2026-03-29T12:03:24.8452379+03:00",
+    "ActualEndTime": "2026-03-29T14:45:00+03:00",
     "AssignedTechnicianId": 2
   },
   {
@@ -215,9 +198,9 @@
     "Duration": "01:00:00",
     "WindowStart": null,
     "WindowEnd": null,
-    "SequenceIndex": 6,
-    "ActualStartTime": "2026-02-10T15:05:55.9244111+02:00",
-    "ActualEndTime": "2026-02-10T16:05:55.9244111+02:00",
+    "SequenceIndex": 4,
+    "ActualStartTime": "2026-03-29T11:18:08.6927003+03:00",
+    "ActualEndTime": "2026-03-29T12:18:08.6927003+03:00",
     "AssignedTechnicianId": 1
   },
   {
@@ -232,10 +215,10 @@
     "Duration": "01:00:00",
     "WindowStart": null,
     "WindowEnd": null,
-    "SequenceIndex": 7,
-    "ActualStartTime": "2026-02-10T16:10:18.7110622+02:00",
-    "ActualEndTime": "2026-02-10T17:10:18.7110622+02:00",
-    "AssignedTechnicianId": 1
+    "SequenceIndex": 8,
+    "ActualStartTime": "2026-03-29T16:54:57.4845355+03:00",
+    "ActualEndTime": "2026-03-29T17:54:57.4845355+03:00",
+    "AssignedTechnicianId": 2
   },
   {
     "Id": 15,
@@ -245,13 +228,30 @@
     "Address": null,
     "Priority": 1,
     "RequiredSkills": 4,
-    "Status": 0,
+    "Status": 1,
     "Duration": "01:00:00",
     "WindowStart": null,
     "WindowEnd": null,
-    "SequenceIndex": 0,
-    "ActualStartTime": null,
-    "ActualEndTime": null,
-    "AssignedTechnicianId": null
+    "SequenceIndex": 5,
+    "ActualStartTime": "2026-03-29T12:21:09.4040692+03:00",
+    "ActualEndTime": "2026-03-29T14:45:00+03:00",
+    "AssignedTechnicianId": 1
+  },
+  {
+    "Id": 16,
+    "ClientName": "shaked",
+    "Latitude": 32.1561435,
+    "Longitude": 34.9742805,
+    "Address": null,
+    "Priority": 1,
+    "RequiredSkills": 4,
+    "Status": 1,
+    "Duration": "01:00:00",
+    "WindowStart": "08:00:00",
+    "WindowEnd": "12:00:00",
+    "SequenceIndex": 3,
+    "ActualStartTime": "2026-03-29T10:14:49.4773369+03:00",
+    "ActualEndTime": "2026-03-29T11:14:49.4773369+03:00",
+    "AssignedTechnicianId": 1
   }
 ]
