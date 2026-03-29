@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSM — Cancellation Manager</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+        /* ── TOP NAV ── */
+        #topnav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 15px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            flex-shrink: 0;
+        }
+        #topnav h2 { margin: 0; font-size: 1.2rem; color: #343a40; flex-grow: 1; }
+        .btn-nav { background: #6c757d; color: white; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
+        .btn-nav:hover { background: #545b62; }
+
+        /* ── SLIDER PANEL ── */
+        #slider-panel {
+            background: white;
+            border-bottom: 2px solid #dee2e6;
+            padding: 10px 20px;
+            flex-shrink: 0;
+        }
+
+        .slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+        .time-readout { font-size: 1.6rem; font-weight: bold; color: #343a40; min-width: 70px; font-variant-numeric: tabular-nums; }
+        input[type=range] { flex-grow: 1; height: 6px; accent-color: #007bff; cursor: pointer; }
+
+        .tick-row { display: flex; justify-content: space-between; padding: 0 2px; margin-bottom: 3px; }
+        .tick { font-size: 0.68rem; color: #6c757d; }
+
+        #gantt-wrap { position: relative; height: 10px; background: #e9ecef; border-radius: 4px; margin-bottom: 6px; overflow: hidden; }
+        .gantt-bar { position: absolute; top: 0; height: 100%; opacity: 0.75; border-radius: 2px; }
+        #gantt-now { position: absolute; top: -2px; width: 2px; height: 14px; background: #343a40; border-radius: 1px; transform: translateX(-50%); pointer-events: none; }
+
+        #stats-bar { display: flex; gap: 20px; font-size: 0.82rem; color: #495057; }
+        #stats-bar span { font-weight: bold; color: #343a40; }
+
+        /* ── BODY SPLIT ── */
+        #body-split { display: flex; flex-grow: 1; overflow: hidden; }
+
+        /* ── SIDEBAR ── */
+        #sidebar { width: 340px; background: #f8f9fa; border-right: 2px solid #dee2e6; display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+        .sidebar-section { padding: 10px 15px; }
+        h3 { margin: 8px 0 6px 0; color: #495057; font-size: 1rem; border-bottom: 2px solid #dee2e6; padding-bottom: 4px; }
+
+        /* ── MAP ── */
+        #map { flex-grow: 1; position: relative; }
+
+        /* ── CARDS ── */
+        .card { background: white; padding: 10px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid #ced4da; display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+        .task-card { border-left: 5px solid #6c757d; }
+        .task-card.can-cancel  { border-left-color: #28a745; }
+        .task-card.in-progress { border-left-color: #ffc107; }
+        .task-card.past        { border-left-color: #ced4da; opacity: 0.6; }
+
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .card-title { font-weight: bold; font-size: 0.9rem; line-height: 1.3; }
+        .card-sub { font-size: 0.78rem; color: #6c757d; margin-top: 2px; }
+
+        .badge { font-size: 0.68rem; padding: 2px 5px; border-radius: 3px; white-space: nowrap; font-weight: 600; }
+        .badge-scheduled   { background: #d4edda; color: #155724; }
+        .badge-inprogress  { background: #fff3cd; color: #856404; }
+        .badge-completed   { background: #cce5ff; color: #004085; }
+        .badge-cancelled   { background: #f8d7da; color: #721c24; }
+        .badge-unscheduled { background: #e2e3e5; color: #383d41; }
+
+        .card-meta { font-size: 0.78rem; color: #495057; display: grid; grid-template-columns: 1fr 1fr; gap: 1px 10px; }
+        .card-meta b { color: #343a40; }
+
+        .card-bar-wrap { height: 4px; background: #e9ecef; border-radius: 2px; overflow: hidden; }
+        .card-bar-fill { height: 100%; border-radius: 2px; transition: width 0.1s; }
+
+        button { padding: 8px; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        .btn-cancel-task { background: transparent; color: #dc3545; border: 1px solid #dc3545; padding: 5px 8px; font-size: 0.8rem; width: 100%; }
+        .btn-cancel-task:hover:not(:disabled) { background: #dc3545; color: white; }
+        .btn-cancel-task:disabled { border-color: #ced4da; color: #adb5bd; cursor: not-allowed; }
+        .cancel-note { font-size: 0.72rem; color: #6c757d; text-align: center; }
+
+        .empty-state { color: #6c757d; font-size: 0.85rem; padding: 20px; text-align: center; }
+
+        /* ── LEGEND ── */
+        .legend-row { display: flex; align-items: center; font-size: 0.8rem; color: #495057; margin-bottom: 4px; }
+        .legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 7px; flex-shrink: 0; }
+
+        /* ── MAP POPUP OVERRIDE ── */
+        .number-icon { display: flex; justify-content: center; align-items: center; border-radius: 50%; color: white; font-weight: bold; font-family: sans-serif; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4); }
+    </style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<div id="topnav">
+    <button class="btn-nav" onclick="window.location.href='index.html'">← Dispatch Center</button>
+    <h2>⏱️ Cancellation Manager</h2>
+    <div id="stats-bar">
+        <div>Tasks: <span id="stat-total">0</span></div>
+        <div>Cancellable: <span id="stat-cancellable" style="color:#28a745;">0</span></div>
+        <div>In Progress: <span id="stat-inprogress" style="color:#856404;">0</span></div>
+        <div>Past: <span id="stat-past" style="color:#6c757d;">0</span></div>
+    </div>
+</div>
+
+<!-- SLIDER PANEL -->
+<div id="slider-panel">
+    <div class="tick-row" id="tick-row"></div>
+    <div class="slider-row">
+        <span class="time-readout" id="time-readout">06:00</span>
+        <input type="range" id="time-slider" min="360" max="1200" value="360" step="1">
+        <span id="slider-info" style="font-size:0.82rem;color:#6c757d;white-space:nowrap;min-width:180px;text-align:right;">
+            — tasks loaded
+        </span>
+    </div>
+    <div id="gantt-wrap"><div id="gantt-now"></div></div>
+</div>
+
+<!-- BODY SPLIT: sidebar + map -->
+<div id="body-split">
+
+    <div id="sidebar">
+        <div class="sidebar-section">
+            <h3>📋 Scheduled Tasks</h3>
+            <div id="task-list"><div class="empty-state">Loading…</div></div>
+        </div>
+        <div class="sidebar-section" style="border-top:1px solid #dee2e6;">
+            <h3>📭 Unscheduled</h3>
+            <div id="unscheduled-list"><div class="empty-state">Loading…</div></div>
+        </div>
+        <div class="sidebar-section" style="border-top:1px solid #dee2e6; padding-bottom:20px;">
+            <h3>Legend</h3>
+            <div class="legend-row"><span class="legend-swatch" style="background:#28a745;"></span>Cancellable — before start</div>
+            <div class="legend-row"><span class="legend-swatch" style="background:#ffc107;"></span>In progress</div>
+            <div class="legend-row"><span class="legend-swatch" style="background:#ced4da;"></span>Past / completed</div>
+            <div class="legend-row"><span class="legend-swatch" style="background:#6c757d;"></span>Unscheduled</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    /* ── MAP SETUP ── */
+    var map = L.map('map').setView([32.0853, 34.7818], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+    var routeLayer = L.layerGroup().addTo(map);
+    var taskLayer  = L.layerGroup().addTo(map);
+
+    /* ── CONFIG ── */
+    const API_BASE    = '';
+    const SHIFT_START = 360;   // 06:00
+    const SHIFT_END   = 1200;  // 20:00
+
+    const TECH_COLORS  = ['#007bff','#dc3545','#28a745','#6f42c1','#fd7e14','#17a2b8'];
+    const STATUS_LABEL = { 0:'Unscheduled', 1:'Scheduled', 2:'In Progress', 3:'Completed', 4:'Cancelled' };
+    const STATUS_BADGE = { 0:'badge-unscheduled', 1:'badge-scheduled', 2:'badge-inprogress', 3:'badge-completed', 4:'badge-cancelled' };
+
+    function getSkillIcon(val) {
+        if (val >= 31) return "🌟";
+        if (val & 16)  return "❄️";
+        if (val & 8)   return "🌐";
+        if (val & 4)   return "💧";
+        if (val & 2)   return "⚡";
+        return "🔨";
+    }
+    function techColor(id) { return TECH_COLORS[((id || 1) - 1) % TECH_COLORS.length]; }
+
+    /* ── STATE ── */
+    let tasks = [];
+    let sliderMin = SHIFT_START;
+
+    /* ── TIME HELPERS ── */
+    function dtToMin(dtStr) {
+        if (!dtStr) return null;
+        const d = new Date(dtStr);
+        return d.getHours() * 60 + d.getMinutes();
+    }
+    function fmtMin(m) {
+        if (m === null || m === undefined) return '—';
+        return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+    }
+    function durationMin(ts) {
+        if (!ts) return 60;
+        const p = ts.split(':').map(Number);
+        return (p[0]||0)*60 + (p[1]||0);
+    }
+    function pct(m) {
+        return Math.max(0, Math.min(1, (m - SHIFT_START) / (SHIFT_END - SHIFT_START))) * 100;
+    }
+
+    /* ── CANCELLATION LOGIC ── */
+    function canCancel(task) {
+        const start = dtToMin(task.actualStartTime);
+        if (start === null) return false;
+        if (task.status === 3 || task.status === 4) return false;
+        return sliderMin < start;
+    }
+    function cancelReason(task) {
+        const start = dtToMin(task.actualStartTime);
+        if (start === null)     return 'Not yet scheduled';
+        if (task.status === 4)  return 'Already cancelled';
+        if (task.status === 3)  return 'Already completed';
+        if (sliderMin >= start) return 'Window has passed';
+        return '';
+    }
+    function cardState(task) {
+        const start = dtToMin(task.actualStartTime);
+        const end   = dtToMin(task.actualEndTime);
+        if (start === null) return 'unscheduled';
+        if (task.status === 3 || task.status === 4) return 'past';
+        if (sliderMin < start) return 'can-cancel';
+        if (sliderMin >= start && sliderMin < (end || start + 60)) return 'in-progress';
+        return 'past';
+    }
+
+    /* ── TICKS ── */
+    function initTicks() {
+        const row = document.getElementById('tick-row');
+        for (let h = 6; h <= 20; h += 2) {
+            const d = document.createElement('div');
+            d.className = 'tick';
+            d.textContent = `${String(h).padStart(2,'0')}:00`;
+            row.appendChild(d);
+        }
+    }
+
+    /* ── FETCH ── */
+    async function fetchTasks() {
+        try {
+            const res = await fetch(`${API_BASE}/api/tasks`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            tasks = await res.json();
+            renderAll();
+        } catch(e) {
+            document.getElementById('task-list').innerHTML =
+                `<div class="empty-state">⚠️ Could not load: ${e.message}</div>`;
+        }
+    }
+
+    /* ── RENDER ALL ── */
+    function renderAll() {
+        renderTimeReadout();
+        renderGantt();
+        renderStats();
+        renderSidebar();
+        renderMap();
+    }
+
+    function renderTimeReadout() {
+        document.getElementById('time-readout').textContent = fmtMin(sliderMin);
+    }
+
+    function renderGantt() {
+        const wrap = document.getElementById('gantt-wrap');
+        wrap.querySelectorAll('.gantt-bar').forEach(b => b.remove());
+        tasks.forEach((t, i) => {
+            const start = dtToMin(t.actualStartTime);
+            const end   = dtToMin(t.actualEndTime);
+            if (start === null || end === null) return;
+            const bar = document.createElement('div');
+            bar.className = 'gantt-bar';
+            bar.style.left       = `${pct(start)}%`;
+            bar.style.width      = `${Math.max(pct(end) - pct(start), 0.4)}%`;
+            bar.style.background = techColor(t.assignedTechnicianId || i + 1);
+            bar.title = `${t.clientName} ${fmtMin(start)}–${fmtMin(end)}`;
+            wrap.insertBefore(bar, document.getElementById('gantt-now'));
+        });
+        document.getElementById('gantt-now').style.left = `${pct(sliderMin)}%`;
+    }
+
+    function renderStats() {
+        const scheduled  = tasks.filter(t => t.actualStartTime);
+        document.getElementById('stat-total').textContent       = tasks.length;
+        document.getElementById('stat-cancellable').textContent = scheduled.filter(canCancel).length;
+        document.getElementById('stat-inprogress').textContent  = scheduled.filter(t => cardState(t) === 'in-progress').length;
+        document.getElementById('stat-past').textContent        = scheduled.filter(t => cardState(t) === 'past').length;
+
+        const n = scheduled.filter(canCancel).length;
+        document.getElementById('slider-info').innerHTML =
+            `<strong style="color:#28a745;">${n}</strong> of ${tasks.length} cancellable`;
+    }
+
+    /* ── SIDEBAR ── */
+    function renderSidebar() {
+        const scheduled = tasks
+            .filter(t => t.actualStartTime)
+            .sort((a,b) => (a.sequenceIndex||0) - (b.sequenceIndex||0));
+
+        const taskList = document.getElementById('task-list');
+        if (scheduled.length === 0) {
+            taskList.innerHTML = '<div class="empty-state">No scheduled tasks.<br>Run the optimizer first.</div>';
+        } else {
+            taskList.innerHTML = '';
+            scheduled.forEach(t => taskList.appendChild(buildCard(t)));
+        }
+
+        const unscheduled = tasks.filter(t => !t.actualStartTime && t.status !== 4);
+        const unschList = document.getElementById('unscheduled-list');
+        if (unscheduled.length === 0) {
+            unschList.innerHTML = '<div class="empty-state">None — all tasks scheduled.</div>';
+        } else {
+            unschList.innerHTML = '';
+            unscheduled.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'card';
+                div.style.borderLeft = '5px solid #6c757d';
+                div.innerHTML = `
+                    <div class="card-top">
+                        <div>
+                            <div class="card-title">${getSkillIcon(t.requiredSkills)} ${esc(t.clientName)}</div>
+                            <div class="card-sub">ID #${t.id}</div>
+                        </div>
+                        <span class="badge ${STATUS_BADGE[t.status]||'badge-unscheduled'}">${STATUS_LABEL[t.status]||'—'}</span>
+                    </div>
+                    <button class="btn-cancel-task" data-id="${t.id}" onclick="cancelTask(${t.id})">✕ Cancel Task</button>
+                `;
+                unschList.appendChild(div);
+            });
+        }
+    }
+
+    function buildCard(task) {
+        const start       = dtToMin(task.actualStartTime);
+        const end         = dtToMin(task.actualEndTime);
+        const state       = cardState(task);
+        const cancellable = canCancel(task);
+        const reason      = cancelReason(task);
+
+        let barPct = 0;
+        if (start !== null && end !== null && end > start) {
+            barPct = Math.min(100, Math.max(0, (sliderMin - start) / (end - start) * 100));
+        }
+        const barColor = state === 'can-cancel'  ? '#28a745'
+                       : state === 'in-progress' ? '#ffc107'
+                       : '#ced4da';
+
+        const div = document.createElement('div');
+        div.className = `card task-card ${state}`;
+        div.dataset.id = task.id;
+
+        div.innerHTML = `
+            <div class="card-top">
+                <div>
+                    <div class="card-title">${getSkillIcon(task.requiredSkills)} ${esc(task.clientName)}</div>
+                    <div class="card-sub">
+                        Tech: <span style="color:${techColor(task.assignedTechnicianId)};font-weight:600;">${task.assignedTechnicianId||'—'}</span>
+                        | Seq: ${task.sequenceIndex||'—'} | #${task.id}
+                    </div>
+                </div>
+                <span class="badge ${STATUS_BADGE[task.status]||'badge-unscheduled'}">${STATUS_LABEL[task.status]||'—'}</span>
+            </div>
+            <div class="card-meta">
+                <div>Start: <b>${fmtMin(start)}</b></div>
+                <div>End: <b>${fmtMin(end)}</b></div>
+                <div>Duration: <b>${durationMin(task.duration)}m</b></div>
+                ${task.windowStart ? `<div>Window: <b style="color:#d63384">${task.windowStart.substr(0,5)}–${(task.windowEnd||'').substr(0,5)}</b></div>` : '<div></div>'}
+            </div>
+            <div class="card-bar-wrap">
+                <div class="card-bar-fill" style="width:${barPct}%;background:${barColor};"></div>
+            </div>
+            <button class="btn-cancel-task" data-id="${task.id}" ${cancellable ? '' : 'disabled'} onclick="cancelTask(${task.id})">
+                ✕ Cancel Task
+            </button>
+            ${reason ? `<div class="cancel-note">${reason}</div>` : ''}
+        `;
+        return div;
+    }
+
+    /* ── MAP ── */
+    function renderMap() {
+        taskLayer.clearLayers();
+        routeLayer.clearLayers();
+
+        const techRoutes = {};
+
+        tasks.forEach(task => {
+            if (!task.latitude || !task.longitude) return;
+
+            const isScheduled = task.status === 1;
+            const state = cardState(task);
+            const color = isScheduled ? techColor(task.assignedTechnicianId) : '#fd7e14';
+
+            // dim past/cancelled markers slightly
+            const opacity = (state === 'past' || task.status === 4) ? 0.4 : 1;
+
+            let markerHtml;
+            if (isScheduled) {
+                // highlight cancellable tasks with a green ring
+                const ring = state === 'can-cancel'
+                    ? `border: 3px solid #28a745; box-shadow: 0 0 0 2px #28a745;`
+                    : `border: 2px solid white;`;
+                markerHtml = `<div class="number-icon" style="background-color:${color};width:26px;height:26px;opacity:${opacity};${ring}">${task.sequenceIndex}</div>`;
+            } else {
+                markerHtml = `<div class="number-icon" style="background-color:${color};width:26px;height:26px;opacity:${opacity};border:2px solid white;font-size:14px;">${getSkillIcon(task.requiredSkills)}</div>`;
+            }
+
+            const icon = L.divIcon({ className: 'dummy', html: markerHtml, iconSize: [26,26], iconAnchor: [13,13] });
+            const startStr = task.actualStartTime
+                ? new Date(task.actualStartTime).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+                : '--:--';
+
+            L.marker([task.latitude, task.longitude], { icon })
+                .bindPopup(`
+                    <b>${getSkillIcon(task.requiredSkills)} ${task.clientName}</b><br>
+                    Start: ${startStr}<br>
+                    Tech: ${task.assignedTechnicianId || '—'} | Seq: ${task.sequenceIndex || '—'}<br>
+                    ${state === 'can-cancel' ? '<span style="color:#28a745;font-weight:bold;">✓ Cancellable</span>' : ''}
+                    ${state === 'in-progress' ? '<span style="color:#856404;">⚡ In progress</span>' : ''}
+                `)
+                .addTo(taskLayer);
+
+            if (isScheduled && task.assignedTechnicianId) {
+                if (!techRoutes[task.assignedTechnicianId]) techRoutes[task.assignedTechnicianId] = [];
+                techRoutes[task.assignedTechnicianId].push(task);
+            }
+        });
+
+        // Draw routes — past segments dimmed, future segments solid
+        Object.keys(techRoutes).forEach(techId => {
+            const route = techRoutes[techId].sort((a,b) => a.sequenceIndex - b.sequenceIndex);
+            const offset = parseInt(techId) * 0.0003;
+            const color  = techColor(parseInt(techId));
+
+            for (let i = 0; i < route.length - 1; i++) {
+                const t1 = route[i];
+                const t2 = route[i + 1];
+                const segEnd = dtToMin(t2.actualStartTime);
+                const isPast = segEnd !== null && sliderMin >= segEnd;
+
+                L.polyline(
+                    [[t1.latitude + offset, t1.longitude + offset],
+                     [t2.latitude + offset, t2.longitude + offset]],
+                    { color, weight: 4, opacity: isPast ? 0.25 : 0.75, dashArray: '5, 10' }
+                ).addTo(routeLayer);
+            }
+        });
+    }
+
+    /* ── CANCEL ── */
+    async function cancelTask(id) {
+        if (!confirm(`Cancel task #${id}? The schedule will be reoptimized.`)) return;
+
+        document.querySelectorAll(`[data-id="${id}"]`).forEach(b => {
+            b.disabled = true;
+            b.textContent = 'Cancelling…';
+        });
+
+        try {
+            const res = await fetch(`${API_BASE}/api/tasks/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            await fetchTasks();
+        } catch(e) {
+            alert(`Failed to cancel task #${id}: ${e.message}`);
+            await fetchTasks();
+        }
+    }
+
+    /* ── SLIDER ── */
+    document.getElementById('time-slider').addEventListener('input', e => {
+        sliderMin = parseInt(e.target.value, 10);
+        renderAll();
+    });
+
+    /* ── UTIL ── */
+    function esc(s) {
+        return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    initTicks();
+    fetchTasks();
+</script>
+</body>
+</html>

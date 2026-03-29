@@ -36,6 +36,7 @@
         .btn-run { background: #6610f2; margin-bottom: 10px; } .btn-run:hover { background: #520dc2; }
         .btn-delete { background: transparent; color: #dc3545; border: 1px solid #dc3545; padding: 2px 6px; font-size: 14px; width: auto; }
         .btn-delete:hover { background: #dc3545; color: white; }
+        .btn-nav { background: #17a2b8; margin-bottom: 10px; } .btn-nav:hover { background: #138496; }
         
         .btn-geo { background: #17a2b8; width: auto; padding: 8px 12px; margin-left: 5px; margin-bottom: 5px; } 
         .btn-geo:hover { background: #138496; }
@@ -50,6 +51,9 @@
     <div id="sidebar">
         <div class="sidebar-header">
             <h2>📡 Dispatch Center</h2>
+
+            <button class="btn-nav" onclick="window.location.href='cancellation.html'">⏱️ Cancellation Manager</button>
+
             <h3>👷 Technicians</h3>
             
             <div class="card" style="background: #e9ecef;">
@@ -263,7 +267,6 @@
                 tasks.forEach(task => {
                     const icon = getSkillIcon(task.requiredSkills);
                     
-                    // Format Window Display
                     let timeInfo = "";
                     if (task.windowStart) {
                         const startStr = task.windowStart.substr(0, 5);
@@ -336,16 +339,13 @@
             const lat = parseFloat(document.getElementById('tLat').value);
             const lon = parseFloat(document.getElementById('tLon').value);
             
-            // --- TIME WINDOW LOGIC ---
             const windowVal = document.getElementById('tTimeWindow').value;
             let start = null;
             let end = null;
 
-            if (windowVal === 'morning') { start = "08:00:00"; end = "12:00:00"; }
+            if (windowVal === 'morning')   { start = "08:00:00"; end = "12:00:00"; }
             else if (windowVal === 'noon') { start = "12:00:00"; end = "15:00:00"; }
             else if (windowVal === 'afternoon') { start = "15:00:00"; end = "18:00:00"; }
-            // 'any' leaves them null
-            // -------------------------
 
             if(!name || !lat || !lon) { alert("Please search for an address first!"); return; }
 
@@ -353,15 +353,9 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    Id: 0, 
-                    ClientName: name, 
-                    RequiredSkills: skill, 
-                    Latitude: lat, 
-                    Longitude: lon, 
-                    Duration: "01:00:00", 
-                    Priority: 1,
-                    WindowStart: start,
-                    WindowEnd: end
+                    Id: 0, ClientName: name, RequiredSkills: skill,
+                    Latitude: lat, Longitude: lon, Duration: "01:00:00", Priority: 1,
+                    WindowStart: start, WindowEnd: end
                 })
             });
             
