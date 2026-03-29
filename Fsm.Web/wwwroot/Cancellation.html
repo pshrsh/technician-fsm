@@ -140,6 +140,7 @@
             <div class="legend-row"><span class="legend-swatch" style="background:#28a745;"></span>Cancellable — before start</div>
             <div class="legend-row"><span class="legend-swatch" style="background:#ffc107;"></span>In progress</div>
             <div class="legend-row"><span class="legend-swatch" style="background:#ced4da;"></span>Past / completed</div>
+            <div class="legend-row"><span class="legend-swatch" style="background:#fd7e14;"></span>Mandatory break (13:00–14:00)</div>
             <div class="legend-row"><span class="legend-swatch" style="background:#6c757d;"></span>Unscheduled</div>
         </div>
     </div>
@@ -160,6 +161,10 @@
     const API_BASE    = '';
     const SHIFT_START = 360;   // 06:00
     const SHIFT_END   = 1200;  // 20:00
+
+    // Mandatory break window (minutes since midnight)
+    const BREAK_START_MIN = 13 * 60; // 780 = 13:00
+    const BREAK_END_MIN   = 14 * 60; // 840 = 14:00
 
     const TECH_COLORS  = ['#007bff','#dc3545','#28a745','#6f42c1','#fd7e14','#17a2b8'];
     const STATUS_LABEL = { 0:'Unscheduled', 1:'Scheduled', 2:'In Progress', 3:'Completed', 4:'Cancelled' };
@@ -263,6 +268,8 @@
     function renderGantt() {
         const wrap = document.getElementById('gantt-wrap');
         wrap.querySelectorAll('.gantt-bar').forEach(b => b.remove());
+
+        // Task bars
         tasks.forEach((t, i) => {
             const start = dtToMin(t.actualStartTime);
             const end   = dtToMin(t.actualEndTime);
@@ -275,6 +282,18 @@
             bar.title = `${t.clientName} ${fmtMin(start)}–${fmtMin(end)}`;
             wrap.insertBefore(bar, document.getElementById('gantt-now'));
         });
+
+        // ── Mandatory break bar 13:00–14:00 ──
+        const breakBar = document.createElement('div');
+        breakBar.className = 'gantt-bar';
+        breakBar.style.left       = `${pct(BREAK_START_MIN)}%`;
+        breakBar.style.width      = `${Math.max(pct(BREAK_END_MIN) - pct(BREAK_START_MIN), 0.4)}%`;
+        breakBar.style.background = '#fd7e14';
+        breakBar.style.opacity    = '0.6';
+        breakBar.style.zIndex     = '2';
+        breakBar.title            = '☕ Mandatory Break 13:00–14:00';
+        wrap.insertBefore(breakBar, document.getElementById('gantt-now'));
+
         document.getElementById('gantt-now').style.left = `${pct(sliderMin)}%`;
     }
 
@@ -290,18 +309,73 @@
             `<strong style="color:#28a745;">${n}</strong> of ${tasks.length} cancellable`;
     }
 
+    /* ── BREAK CARD ── */
+    function buildBreakCard() {
+        let barPct = 0;
+        if (sliderMin > BREAK_START_MIN && sliderMin <= BREAK_END_MIN) {
+            barPct = (sliderMin - BREAK_START_MIN) / 60 * 100;
+        } else if (sliderMin > BREAK_END_MIN) {
+            barPct = 100;
+        }
+
+        const state      = sliderMin < BREAK_START_MIN ? 'Upcoming'
+                         : sliderMin <= BREAK_END_MIN  ? 'In Progress'
+                         : 'Completed';
+        const stateColor = sliderMin < BREAK_START_MIN ? '#6c757d'
+                         : sliderMin <= BREAK_END_MIN  ? '#e65100'
+                         : '#6c757d';
+        const opacity    = sliderMin > BREAK_END_MIN ? '0.6' : '1';
+
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.style.cssText = `border-left:5px solid #fd7e14;background:#fff9f0;opacity:${opacity};`;
+        div.innerHTML = `
+            <div class="card-top">
+                <div>
+                    <div class="card-title">☕ Mandatory Break</div>
+                    <div class="card-sub">All technicians — no scheduling</div>
+                </div>
+                <span class="badge" style="background:#ffe0b2;color:${stateColor};">${state}</span>
+            </div>
+            <div class="card-meta">
+                <div>Start: <b>13:00</b></div>
+                <div>End: <b>14:00</b></div>
+                <div>Duration: <b>60m</b></div>
+                <div></div>
+            </div>
+            <div class="card-bar-wrap">
+                <div class="card-bar-fill" style="width:${barPct}%;background:#fd7e14;"></div>
+            </div>
+        `;
+        return div;
+    }
+
     /* ── SIDEBAR ── */
     function renderSidebar() {
+        // Sort by actual start time so the break card slots in at the right position
         const scheduled = tasks
             .filter(t => t.actualStartTime)
-            .sort((a,b) => (a.sequenceIndex||0) - (b.sequenceIndex||0));
+            .sort((a, b) => (dtToMin(a.actualStartTime) || 0) - (dtToMin(b.actualStartTime) || 0));
 
         const taskList = document.getElementById('task-list');
         if (scheduled.length === 0) {
             taskList.innerHTML = '<div class="empty-state">No scheduled tasks.<br>Run the optimizer first.</div>';
         } else {
             taskList.innerHTML = '';
-            scheduled.forEach(t => taskList.appendChild(buildCard(t)));
+            let breakInserted = false;
+
+            scheduled.forEach(t => {
+                const startMin = dtToMin(t.actualStartTime);
+                // Insert break card before the first task that starts at/after 14:00
+                if (!breakInserted && startMin !== null && startMin >= BREAK_END_MIN) {
+                    taskList.appendChild(buildBreakCard());
+                    breakInserted = true;
+                }
+                taskList.appendChild(buildCard(t));
+            });
+
+            // If no task starts after the break, still append the break card at the end
+            if (!breakInserted) taskList.appendChild(buildBreakCard());
         }
 
         const unscheduled = tasks.filter(t => !t.actualStartTime && t.status !== 4);
@@ -390,12 +464,10 @@
             const state = cardState(task);
             const color = isScheduled ? techColor(task.assignedTechnicianId) : '#fd7e14';
 
-            // dim past/cancelled markers slightly
             const opacity = (state === 'past' || task.status === 4) ? 0.4 : 1;
 
             let markerHtml;
             if (isScheduled) {
-                // highlight cancellable tasks with a green ring
                 const ring = state === 'can-cancel'
                     ? `border: 3px solid #28a745; box-shadow: 0 0 0 2px #28a745;`
                     : `border: 2px solid white;`;
@@ -425,7 +497,6 @@
             }
         });
 
-        // Draw routes — past segments dimmed, future segments solid
         Object.keys(techRoutes).forEach(techId => {
             const route = techRoutes[techId].sort((a,b) => a.sequenceIndex - b.sequenceIndex);
             const offset = parseInt(techId) * 0.0003;

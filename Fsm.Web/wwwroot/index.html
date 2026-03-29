@@ -134,6 +134,10 @@
         var taskLayer = L.layerGroup().addTo(map);
         var techLayer = L.layerGroup().addTo(map);
 
+        // Mandatory break window
+        const BREAK_START_MIN = 13 * 60; // 780
+        const BREAK_END_MIN   = 14 * 60; // 840
+
         function getTechColor(id) {
             const colors = ['#007bff', '#dc3545', '#28a745', '#6f42c1', '#fd7e14', '#17a2b8'];
             return colors[(id - 1) % colors.length] || '#007bff';
@@ -146,6 +150,12 @@
             if (val & 4) return "💧";
             if (val & 2) return "⚡";
             return "🔨";
+        }
+
+        function taskStartMin(task) {
+            if (!task.actualStartTime) return null;
+            const d = new Date(task.actualStartTime);
+            return d.getHours() * 60 + d.getMinutes();
         }
 
         async function geocode(inputId, latId, lonId) {
@@ -245,10 +255,17 @@
             const myTasks = tasks.filter(t => t.assignedTechnicianId === techId).sort((a,b) => a.sequenceIndex - b.sequenceIndex);
             
             let msg = `📅 Schedule for ${techName}:\n--------------------------\n08:00 🏠 Start\n`;
+            let breakShown = false;
             myTasks.forEach(t => {
                 const start = t.actualStartTime ? new Date(t.actualStartTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "--:--";
+                const startMin = taskStartMin(t);
+                if (!breakShown && startMin !== null && startMin >= BREAK_END_MIN) {
+                    msg += `13:00 ☕ Mandatory Break (until 14:00)\n`;
+                    breakShown = true;
+                }
                 msg += `${start} ${getSkillIcon(t.requiredSkills)} ${t.clientName}\n`;
             });
+            if (!breakShown) msg += `13:00 ☕ Mandatory Break (until 14:00)\n`;
             alert(msg + "--------------------------\n🏁 End");
         }
 
@@ -262,11 +279,40 @@
                 routeLayer.clearLayers();
 
                 let totalDist = 0;
-                const techRoutes = {}; 
+                const techRoutes = {};
 
-                tasks.forEach(task => {
+                // Sort scheduled tasks by actual start time so the break inserts correctly
+                const scheduledTasks = tasks
+                    .filter(t => t.status === 1 && t.actualStartTime)
+                    .sort((a, b) => (taskStartMin(a) || 0) - (taskStartMin(b) || 0));
+                const unscheduledTasks = tasks.filter(t => t.status !== 1 || !t.actualStartTime);
+
+                const orderedTasks = [...scheduledTasks, ...unscheduledTasks];
+
+                let breakInserted = false;
+
+                orderedTasks.forEach(task => {
                     const icon = getSkillIcon(task.requiredSkills);
-                    
+                    const startMin = taskStartMin(task);
+
+                    // ── Insert mandatory break card before first task starting at/after 14:00 ──
+                    if (!breakInserted && startMin !== null && startMin >= BREAK_END_MIN) {
+                        const breakDiv = document.createElement('div');
+                        breakDiv.className = 'card';
+                        breakDiv.style.cssText = 'border-left:5px solid #fd7e14;background:#fff9f0;';
+                        breakDiv.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                <div>
+                                    <strong>☕ Mandatory Break</strong><br>
+                                    <small style="color:#6c757d;">All technicians — no scheduling</small>
+                                </div>
+                                <span style="font-size:0.72rem;padding:2px 5px;border-radius:3px;background:#ffe0b2;color:#e65100;font-weight:600;">13:00–14:00</span>
+                            </div>
+                        `;
+                        list.appendChild(breakDiv);
+                        breakInserted = true;
+                    }
+
                     let timeInfo = "";
                     if (task.windowStart) {
                         const startStr = task.windowStart.substr(0, 5);
@@ -309,6 +355,23 @@
                         }
                     }
                 });
+
+                // If all tasks finish before 14:00, still append break card at end of scheduled section
+                if (!breakInserted && scheduledTasks.length > 0) {
+                    const breakDiv = document.createElement('div');
+                    breakDiv.className = 'card';
+                    breakDiv.style.cssText = 'border-left:5px solid #fd7e14;background:#fff9f0;';
+                    breakDiv.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                            <div>
+                                <strong>☕ Mandatory Break</strong><br>
+                                <small style="color:#6c757d;">All technicians — no scheduling</small>
+                            </div>
+                            <span style="font-size:0.72rem;padding:2px 5px;border-radius:3px;background:#ffe0b2;color:#e65100;font-weight:600;">13:00–14:00</span>
+                        </div>
+                    `;
+                    list.appendChild(breakDiv);
+                }
 
                 Object.keys(techRoutes).forEach(techId => {
                     const route = techRoutes[techId];
