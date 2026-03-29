@@ -80,13 +80,89 @@ namespace FSM.Application.Services
             _taskRepo.Save(Tasks);
         }
 
-        public bool DeleteTask(int id)
+        public bool _DeleteTask(int id)
         {
             var task = Tasks.FirstOrDefault(t => t.Id == id);
             if (task == null) return false;
             Tasks.Remove(task);
             _taskRepo.Save(Tasks);
             return true;
+        }
+
+        public async Task<bool> DeleteTaskAndReoptimizeAsync(int id)
+        {
+            var task = Tasks.FirstOrDefault(t => t.Id == id);
+            if (task == null) return false;
+
+            int? techId = task.AssignedTechnicianId;
+
+            // Mark for re-calc
+            Tasks.Remove(task);
+
+            if (techId.HasValue)
+            {
+                await ReoptimizeScheduleForTechnician(techId.Value);
+            }
+
+            _taskRepo.Save(Tasks);
+            return true;
+        }
+
+        private async System.Threading.Tasks.Task ReoptimizeScheduleForTechnician(int techId)
+        {
+            var tech = Technicians.FirstOrDefault(t => t.Id == techId);
+            if (tech == null) return;
+
+            // Get all other tasks assigned to this tech today
+            var remainingTasks = Tasks
+                .Where(t => t.AssignedTechnicianId == techId)
+                .OrderBy(t => t.SequenceIndex)
+                .ToList();
+
+            // Create a schedule just for this tech
+            var techSchedule = new TechnicianSchedule
+            {
+                Technician = tech,
+                TechnicianId = tech.Id,
+                Tasks = remainingTasks
+            };
+
+            // Optimize this single schedule
+            var optimizer = new SimulatedAnnealingEngine(new WeightedObjectiveFunction());
+            var optimizedSchedules = await optimizer.OptimizeScheduleAsync(new List<TechnicianSchedule> { techSchedule }, CancellationToken.None);
+            var optimizedSchedule = optimizedSchedules.First();
+
+            // "Commit" the changes back to the main Tasks list
+            int sequence = 1;
+            TimeSpan currentTime = tech.ShiftStart;
+            double currentLat = tech.BaseLatitude;
+            double currentLon = tech.BaseLongitude;
+
+            foreach (var optimizedTask in optimizedSchedule.Tasks)
+            {
+                var realTask = Tasks.FirstOrDefault(t => t.Id == optimizedTask.Id);
+                if (realTask != null)
+                {
+                    currentTime = BreakTimeHelper.AdjustForBreak(currentTime);
+                    double dist = GetDist(currentLat, currentLon, realTask.Latitude, realTask.Longitude);
+                    double travelHours = dist / tech.EstimatedTravelSpeedKmH;
+                    currentTime = BreakTimeHelper.AddTimeWithBreak(currentTime, TimeSpan.FromHours(travelHours));
+
+                    if (realTask.WindowStart.HasValue && currentTime < realTask.WindowStart.Value)
+                    {
+                        currentTime = realTask.WindowStart.Value;
+                    }
+
+                    realTask.ActualStartTime = DateTime.Today.Add(currentTime);
+                    currentTime = BreakTimeHelper.CalculateEndTimeWithBreak(currentTime, realTask.Duration);
+                    realTask.ActualEndTime = DateTime.Today.Add(currentTime);
+                    realTask.SequenceIndex = sequence++;
+                    realTask.Status = FSM.Domain.Enums.TaskStatus.Scheduled;
+
+                    currentLat = realTask.Latitude;
+                    currentLon = realTask.Longitude;
+                }
+            }
         }
 
 public async System.Threading.Tasks.Task<List<TechnicianSchedule>> RunOptimizationAsync()

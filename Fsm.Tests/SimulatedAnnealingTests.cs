@@ -32,8 +32,8 @@ namespace Fsm.Tests
                 Skills = SkillSet.General
             };
 
-            var t1 = new TaskEntity { Id = 1, Latitude = 0, Longitude = 10, Duration = TimeSpan.FromMinutes(30), RequiredSkills = SkillSet.General, TimeWindowStart = DateTime.Today.AddHours(9), TimeWindowEnd = DateTime.Today.AddHours(17) };
-            var t2 = new TaskEntity { Id = 2, Latitude = 0, Longitude = 0.1, Duration = TimeSpan.FromMinutes(30), RequiredSkills = SkillSet.General, TimeWindowStart = DateTime.Today.AddHours(9), TimeWindowEnd = DateTime.Today.AddHours(17) };
+            var t1 = new TaskEntity { Id = 1, Latitude = 0, Longitude = 10, Duration = TimeSpan.FromMinutes(30), RequiredSkills = SkillSet.General, WindowStart = TimeSpan.FromHours(9), WindowEnd = TimeSpan.FromHours(17) };
+            var t2 = new TaskEntity { Id = 2, Latitude = 0, Longitude = 0.1, Duration = TimeSpan.FromMinutes(30), RequiredSkills = SkillSet.General, WindowStart = TimeSpan.FromHours(9), WindowEnd = TimeSpan.FromHours(17) };
 
             // Schedule: Base -> Far (10) -> Close (0.1) 
             // Optimal would be: Base -> Close (0.1) -> Far (10)

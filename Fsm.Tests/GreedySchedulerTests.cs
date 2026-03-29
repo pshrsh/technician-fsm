@@ -39,8 +39,8 @@ namespace Fsm.Tests
                     Priority = TaskPriority.High,
                     RequiredSkills = SkillSet.Electric, // Requires Electric
                     Duration = TimeSpan.FromHours(1),
-                    TimeWindowStart = DateTime.Today.AddHours(9),
-                    TimeWindowEnd = DateTime.Today.AddHours(12),
+                    WindowStart = TimeSpan.FromHours(9),
+                    WindowEnd = TimeSpan.FromHours(12),
                     Latitude = 0.1, Longitude = 0.1 // Close by
                 }
             };
@@ -83,8 +83,8 @@ namespace Fsm.Tests
                     Id = 100,
                     RequiredSkills = SkillSet.Electric, // Requires Electric
                     Duration = TimeSpan.FromHours(1),
-                    TimeWindowStart = DateTime.Today.AddHours(9),
-                    TimeWindowEnd = DateTime.Today.AddHours(12),
+                    WindowStart = TimeSpan.FromHours(9),
+                    WindowEnd = TimeSpan.FromHours(12),
                     Latitude = 0.1, Longitude = 0.1
                 }
             };

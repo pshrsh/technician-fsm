@@ -43,9 +43,9 @@ namespace FSM.Web.Controllers
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> Delete(int id)
         {
-            var success = _service.DeleteTask(id);
+            var success = await _service.DeleteTaskAndReoptimizeAsync(id);
             if (!success) return NotFound();
             return Ok();
         }
